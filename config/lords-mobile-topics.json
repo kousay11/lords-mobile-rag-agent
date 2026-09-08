@@ -1,0 +1,28 @@
+{
+  "topics": [
+    "buildings",
+    "research",
+    "troops",
+    "heroes",
+    "familiars",
+    "combat",
+    "resources",
+    "equipment",
+    "talents",
+    "events",
+    "progression"
+  ],
+  "entity_types": [
+    "building",
+    "research",
+    "troop",
+    "hero",
+    "familiar",
+    "equipment",
+    "event",
+    "resource",
+    "guide"
+  ],
+  "document_statuses": ["active", "deprecated", "needs_review"],
+  "source_types": ["official", "verified_community", "community", "reference"]
+}

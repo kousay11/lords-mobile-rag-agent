@@ -1,0 +1,14 @@
+{
+  "default_provider": "local-openai",
+  "default_model": "qwen2.5:7b-instruct",
+  "providers": {
+    "local-openai": {
+      "display_name": "OpenAI-compatible local provider",
+      "description": "Local or self-hosted OpenAI-compatible endpoint. Change the URL and model for your deployment.",
+      "base_url": "http://host.docker.internal:11434/v1",
+      "api_key_env": "LOCAL_OPENAI_API_KEY",
+      "enabled": true,
+      "timeout_seconds": 30
+    }
+  }
+}

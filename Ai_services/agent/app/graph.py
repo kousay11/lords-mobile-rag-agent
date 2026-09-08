@@ -1,0 +1,367 @@
+"""Read-only LangGraph workflow for the Lords Mobile documentary agent."""
+
+from __future__ import annotations
+
+import asyncio
+import os
+from typing import Annotated, Any, NotRequired, TypedDict
+
+import httpx
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from langchain_core.runnables import RunnableConfig
+from langchain_openai import ChatOpenAI
+from langgraph.graph import END, StateGraph
+from langgraph.graph.message import add_messages
+
+from intent import (
+    classify_intent,
+    detect_language,
+    extract_game_version,
+    extract_topics,
+    needs_clarification,
+    rewrite_queries,
+)
+from prompts import build_grounded_prompt
+
+
+RAG_URL = os.getenv("RAG_SERVICE_URL", "http://rag:8001").rstrip("/")
+MAX_CONTEXT_CHUNKS = 8
+
+
+class LordsMobileState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+    user_id: NotRequired[str]
+    language: NotRequired[str]
+    game_version: NotRequired[str | None]
+    player_context: NotRequired[dict[str, Any]]
+    intent: NotRequired[str]
+    topics: NotRequired[list[str]]
+    rewritten_queries: NotRequired[list[str]]
+    retrieved_documents: NotRequired[list[dict[str, Any]]]
+    context: NotRequired[str]
+    sources: NotRequired[list[dict[str, Any]]]
+    confidence: NotRequired[float]
+    needs_clarification: NotRequired[bool]
+    search_type: NotRequired[str]
+    generation_mode: NotRequired[str]
+    model: NotRequired[str]
+    base_url: NotRequired[str]
+
+
+# Backward-compatible import name for callers that imported AgentState.
+AgentState = LordsMobileState
+
+
+def _latest_question(state: LordsMobileState) -> str:
+    message = next(
+        (item for item in reversed(state.get("messages", [])) if isinstance(item, HumanMessage)),
+        None,
+    )
+    return str(message.content).strip() if message else ""
+
+
+def get_llm(
+    model_name: str | None,
+    base_url: str | None,
+    api_key: str | None,
+) -> ChatOpenAI:
+    return ChatOpenAI(
+        model=model_name or "qwen2.5:7b-instruct",
+        api_key=api_key or "local-provider",
+        base_url=base_url,
+        temperature=0.2,
+        timeout=60,
+        max_retries=1,
+    )
+
+
+def classify_node(state: LordsMobileState) -> dict[str, Any]:
+    query = _latest_question(state)
+    intent = classify_intent(query)
+    language = detect_language(query, state.get("language"))
+    return {"intent": intent, "language": language}
+
+
+def route_after_classification(state: LordsMobileState) -> str:
+    intent = state.get("intent", "unclear")
+    if intent in {"greeting", "unclear", "out_of_scope"}:
+        return "direct_answer"
+    return "extract_game_context"
+
+
+def extract_game_context_node(state: LordsMobileState) -> dict[str, Any]:
+    query = _latest_question(state)
+    player_context = state.get("player_context") or {}
+    intent = state.get("intent", "fact_lookup")
+    return {
+        "topics": extract_topics(query),
+        "game_version": extract_game_version(query, state.get("game_version")),
+        "player_context": player_context,
+        "needs_clarification": needs_clarification(query, intent, player_context),
+    }
+
+
+def rewrite_node(state: LordsMobileState) -> dict[str, Any]:
+    query = _latest_question(state)
+    return {"rewritten_queries": rewrite_queries(query, state.get("topics", []))}
+
+
+async def _retrieve_one(
+    query: str,
+    *,
+    search_type: str,
+    top_k: int,
+    game_version: str | None,
+    statuses: list[str],
+    min_reliability: int,
+    min_score: float,
+) -> list[dict[str, Any]]:
+    payload: dict[str, Any] = {
+        "query": query,
+        "top_k": top_k,
+        "search_type": search_type,
+        # The initial approved corpus is French. Answer language is handled by the LLM.
+        "language": "fr",
+        "statuses": statuses,
+        "min_reliability": min_reliability,
+        "min_relevance_score": min_score,
+    }
+    if game_version:
+        payload["game_version"] = game_version
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(f"{RAG_URL}/retrieve", json=payload)
+        response.raise_for_status()
+        return response.json().get("chunks", [])
+
+
+async def retrieve_node(
+    state: LordsMobileState, config: RunnableConfig
+) -> dict[str, Any]:
+    cfg = (config or {}).get("configurable", {})
+    query = _latest_question(state)
+    rewritten = state.get("rewritten_queries", [])
+    queries = list(dict.fromkeys([query, *rewritten]))
+    search_type = str(cfg.get("search_type", "hybrid"))
+    top_k = max(1, min(int(cfg.get("top_k", 8)), 20))
+    min_score = max(0.0, min(float(cfg.get("min_relevance_score", 0.25)), 1.0))
+    min_reliability = max(1, min(int(cfg.get("min_reliability", 4)), 5))
+    game_version = state.get("game_version")
+    statuses = ["active", "deprecated"] if game_version else ["active"]
+
+    batches = await asyncio.gather(
+        *[
+            _retrieve_one(
+                item,
+                search_type=search_type,
+                top_k=top_k,
+                game_version=game_version,
+                statuses=statuses,
+                min_reliability=min_reliability,
+                min_score=min_score,
+            )
+            for item in queries
+        ]
+    )
+
+    deduplicated: dict[str, dict[str, Any]] = {}
+    for chunk in (item for batch in batches for item in batch):
+        metadata = chunk.get("metadata", {})
+        key = str(metadata.get("chunk_id") or chunk.get("text", "")[:200])
+        previous = deduplicated.get(key)
+        if previous is None or float(chunk.get("score", 0)) > float(previous.get("score", 0)):
+            deduplicated[key] = chunk
+
+    ranked = sorted(
+        deduplicated.values(), key=lambda item: float(item.get("score", 0)), reverse=True
+    )[:MAX_CONTEXT_CHUNKS]
+    return {
+        "retrieved_documents": ranked,
+        "search_type": search_type,
+    }
+
+
+def _source_from_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
+    metadata = chunk.get("metadata", {})
+    return {
+        "document_id": metadata.get("document_id"),
+        "title": metadata.get("title") or metadata.get("source") or "Source",
+        "url": metadata.get("url"),
+        "source_type": metadata.get("source_type"),
+        "language": metadata.get("language"),
+        "game_version": metadata.get("game_version"),
+        "status": metadata.get("status"),
+        "reliability": metadata.get("reliability"),
+        "score": round(float(chunk.get("score", 0)), 4),
+    }
+
+
+def validate_context_node(state: LordsMobileState) -> dict[str, Any]:
+    chunks = state.get("retrieved_documents", [])
+    sources_by_document: dict[str, dict[str, Any]] = {}
+    for chunk in chunks:
+        source = _source_from_chunk(chunk)
+        key = str(source.get("document_id") or source.get("title"))
+        previous = sources_by_document.get(key)
+        if previous is None or source["score"] > previous["score"]:
+            sources_by_document[key] = source
+
+    sources = list(sources_by_document.values())
+    if chunks:
+        top_scores = [float(item.get("score", 0)) for item in chunks[:3]]
+        score_signal = sum(top_scores) / len(top_scores)
+        reliability_values = [
+            float(item.get("metadata", {}).get("reliability", 1)) / 5.0
+            for item in chunks[:3]
+        ]
+        reliability_signal = sum(reliability_values) / len(reliability_values)
+        confidence = round(min(0.95, 0.7 * score_signal + 0.3 * reliability_signal), 3)
+    else:
+        confidence = 0.0
+
+    requires_clarification = bool(state.get("needs_clarification")) or not chunks
+    context = "\n\n".join(str(item.get("text", "")) for item in chunks)
+    return {
+        "context": context,
+        "sources": sources,
+        "confidence": confidence,
+        "needs_clarification": requires_clarification,
+    }
+
+
+def _localized_direct_answer(intent: str, language: str) -> str:
+    messages = {
+        "fr": {
+            "greeting": "Bonjour ! Je peux vous guider dans Lords Mobile à partir de sources documentées.",
+            "unclear": "Pouvez-vous préciser votre question sur Lords Mobile, par exemple le héros, le type de troupe, l’événement ou votre objectif ?",
+            "out_of_scope": "Je suis limité au guide documentaire Lords Mobile en lecture seule. Je ne peux ni automatiser un compte ou le jeu, ni traiter les anciennes fonctions réseau de QoSentry.",
+        },
+        "en": {
+            "greeting": "Hello! I can provide sourced, read-only guidance about Lords Mobile.",
+            "unclear": "Please clarify your Lords Mobile question, such as the hero, troop type, event, or goal involved.",
+            "out_of_scope": "I am limited to sourced, read-only Lords Mobile guidance. I cannot automate accounts or gameplay, or handle QoSentry network operations.",
+        },
+        "ar": {
+            "greeting": "مرحبًا! يمكنني تقديم إرشادات موثقة عن Lords Mobile بوضع القراءة فقط.",
+            "unclear": "يرجى توضيح سؤالك عن Lords Mobile، مثل البطل أو نوع القوات أو الحدث أو الهدف.",
+            "out_of_scope": "أنا مخصص لإرشادات Lords Mobile الموثقة وبوضع القراءة فقط، ولا أستطيع أتمتة الحساب أو اللعب.",
+        },
+    }
+    catalog = messages.get(language, messages["fr"])
+    return catalog.get(intent, catalog["unclear"])
+
+
+def direct_answer_node(state: LordsMobileState) -> dict[str, Any]:
+    intent = state.get("intent", "unclear")
+    language = state.get("language", "fr")
+    return {
+        "messages": [AIMessage(content=_localized_direct_answer(intent, language))],
+        "sources": [],
+        "context": "",
+        "retrieved_documents": [],
+        "rewritten_queries": [],
+        "confidence": 1.0 if intent == "greeting" else 0.0,
+        "needs_clarification": intent == "unclear",
+        "generation_mode": "deterministic",
+    }
+
+
+def _fallback_grounded_answer(state: LordsMobileState) -> str:
+    language = state.get("language", "fr")
+    chunks = state.get("retrieved_documents", [])[:2]
+    if not chunks:
+        if language == "en":
+            return "I did not find reliable enough evidence in the corpus. Please specify the topic or game version."
+        if language == "ar":
+            return "لم أجد دليلاً موثوقًا كافيًا في المصادر. يرجى تحديد الموضوع أو إصدار اللعبة."
+        return "Je n’ai pas trouvé de preuve suffisamment fiable dans le corpus. Précisez le sujet ou la version du jeu."
+
+    excerpts = []
+    for index, chunk in enumerate(chunks, 1):
+        text = " ".join(str(chunk.get("text", "")).split())[:600]
+        excerpts.append(f"- {text} [{index}]")
+    if language == "en":
+        heading = "The available documents indicate:"
+        warning = "Check the source version before relying on exact values."
+    elif language == "ar":
+        heading = "تشير الوثائق المتاحة إلى ما يلي:"
+        warning = "تحقق من إصدار المصدر قبل الاعتماد على القيم الدقيقة."
+    else:
+        heading = "Les documents disponibles indiquent :"
+        warning = "Vérifiez la version de la source avant d’utiliser une valeur précise."
+    return "\n".join([heading, *excerpts, warning])
+
+
+async def generate_node(
+    state: LordsMobileState, config: RunnableConfig
+) -> dict[str, Any]:
+    cfg = (config or {}).get("configurable", {})
+    chunks = state.get("retrieved_documents", [])
+    if not chunks:
+        return {
+            "messages": [AIMessage(content=_fallback_grounded_answer(state))],
+            "generation_mode": "safe_fallback",
+        }
+
+    system_prompt = build_grounded_prompt(
+        language=state.get("language", "fr"),
+        intent=state.get("intent", "fact_lookup"),
+        game_version=state.get("game_version"),
+        player_context=state.get("player_context", {}),
+        context_blocks=chunks,
+    )
+    try:
+        llm = get_llm(
+            model_name=cfg.get("model") or state.get("model"),
+            base_url=cfg.get("base_url") or state.get("base_url"),
+            api_key=cfg.get("api_key"),
+        )
+        history = list(state.get("messages", []))[-12:]
+        response = await llm.ainvoke([SystemMessage(content=system_prompt), *history])
+        content = response.content if isinstance(response.content, str) else str(response.content)
+        mode = "llm"
+    except Exception as error:
+        print(f"Warning: LLM generation unavailable, using grounded fallback: {error}")
+        content = _fallback_grounded_answer(state)
+        mode = "safe_fallback"
+
+    ai_message = AIMessage(
+        content=content,
+        additional_kwargs={
+            "metadata": {
+                "sources": state.get("sources", []),
+                "confidence": state.get("confidence", 0.0),
+                "needs_clarification": state.get("needs_clarification", False),
+                "game_version": state.get("game_version"),
+            }
+        },
+    )
+    return {"messages": [ai_message], "generation_mode": mode}
+
+
+def build_graph(checkpointer=None):
+    builder = StateGraph(LordsMobileState)
+    builder.add_node("classify_intent", classify_node)
+    builder.add_node("direct_answer", direct_answer_node)
+    builder.add_node("extract_game_context", extract_game_context_node)
+    builder.add_node("rewrite_query", rewrite_node)
+    builder.add_node("retrieve", retrieve_node)
+    builder.add_node("validate_context", validate_context_node)
+    builder.add_node("generate_answer", generate_node)
+
+    builder.set_entry_point("classify_intent")
+    builder.add_conditional_edges(
+        "classify_intent",
+        route_after_classification,
+        {
+            "direct_answer": "direct_answer",
+            "extract_game_context": "extract_game_context",
+        },
+    )
+    builder.add_edge("direct_answer", END)
+    builder.add_edge("extract_game_context", "rewrite_query")
+    builder.add_edge("rewrite_query", "retrieve")
+    builder.add_edge("retrieve", "validate_context")
+    builder.add_edge("validate_context", "generate_answer")
+    builder.add_edge("generate_answer", END)
+    return builder.compile(checkpointer=checkpointer) if checkpointer else builder.compile()
