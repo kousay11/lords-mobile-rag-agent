@@ -49,6 +49,7 @@ public class User extends BaseEntity implements UserDetails {
     }
 
     public enum ProfileRole {
+        PLAYER,
         TECHNICAL,
         EXECUTIVE
     }

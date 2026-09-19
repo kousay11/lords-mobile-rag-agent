@@ -34,13 +34,51 @@ class GraphNodeTests(unittest.TestCase):
         self.assertEqual(answer["sources"], [])
         self.assertEqual(answer["generation_mode"], "deterministic")
 
-    def test_context_validation_deduplicates_sources(self):
+    def test_context_validation_preserves_citation_order(self):
         result = graph.validate_context_node(
             {"retrieved_documents": [_chunk(score=0.9), _chunk(score=0.7)]}
         )
-        self.assertEqual(len(result["sources"]), 1)
+        self.assertEqual(len(result["sources"]), 2)
+        self.assertEqual(
+            result["sources"][0]["content"],
+            "Le document indique une règle Lords Mobile vérifiable.",
+        )
         self.assertGreater(result["confidence"], 0)
         self.assertFalse(result["needs_clarification"])
+
+    def test_broad_battle_question_returns_deterministic_clarification(self):
+        state = {
+            "messages": [
+                HumanMessage(
+                    content="Explique comment gagner toutes les batailles du jeu."
+                )
+            ],
+            "language": "en",
+        }
+        classified = graph.classify_node(state)
+        extracted = graph.extract_game_context_node({**state, **classified})
+        answer = graph.clarification_answer_node({**state, **classified, **extracted})
+        self.assertEqual(classified["language"], "fr")
+        self.assertTrue(extracted["needs_clarification"])
+        self.assertEqual(
+            graph.route_after_context_extraction(extracted), "clarification_answer"
+        )
+        self.assertEqual(answer["generation_mode"], "deterministic_clarification")
+        self.assertIn("garantir", answer["messages"][0].content)
+
+    def test_grounding_validator_rejects_unsupported_percentage_and_name(self):
+        issues = graph.grounding_issues(
+            'Utilisez 40–50 % d’infanterie avec “Berserker”. [1]', [_chunk()]
+        )
+        self.assertTrue(any(item.startswith("unsupported_percentage") for item in issues))
+        self.assertTrue(any(item.startswith("unsupported_quoted_term") for item in issues))
+
+    def test_grounding_validator_accepts_supported_claim(self):
+        chunk = _chunk()
+        chunk["text"] = "Le guide recommande exactement 50 % dans cet exemple."
+        self.assertEqual(
+            graph.grounding_issues("Le guide recommande 50 %. [1]", [chunk]), []
+        )
 
     def test_empty_context_forces_safe_clarification(self):
         result = graph.validate_context_node({"retrieved_documents": []})

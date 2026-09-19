@@ -108,6 +108,13 @@ services:
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-me-with-a-long-random-secret}
       AI_AGENT_BASE_URL: http://agent:8002
       AI_RAG_BASE_URL: http://rag:8001
+      AI_CONNECT_TIMEOUT_MS: ${AI_CONNECT_TIMEOUT_MS:-3000}
+      AI_READ_TIMEOUT_MS: ${AI_READ_TIMEOUT_MS:-90000}
+      CHAT_REQUESTS_PER_MINUTE: ${CHAT_REQUESTS_PER_MINUTE:-30}
+      BOOTSTRAP_ADMIN_ENABLED: ${BOOTSTRAP_ADMIN_ENABLED:-false}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@example.invalid}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,9 +125,9 @@ services:
       agent:
         condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${BACKEND_HOST_PORT:-8081}:8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/swagger-ui/index.html >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/health | grep -q '\"status\":\"ok\"' "]
       interval: 20s
       timeout: 5s
       retries: 10
@@ -130,8 +137,8 @@ services:
   frontend:
     build:
       context: ./frontend
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8080
     depends_on:
       backend:
         condition: service_healthy

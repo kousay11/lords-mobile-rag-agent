@@ -12,7 +12,19 @@ Next.js -> Spring Boot -> Agent LangGraph -> RAG FastAPI -> Qdrant
                   Redis
 ```
 
-Les services RAG et Agent sont internes au réseau Docker. Le navigateur devra passer par Spring Boot lorsque les routes chat et knowledge auront été adaptées ; le frontend historique appelle encore directement l'agent et ne constitue pas encore le flux cible.
+Les services RAG et Agent sont internes au réseau Docker. Le frontend Next.js passe exclusivement par le backend Spring Boot pour l'authentification, le chat, les conversations, le profil joueur et l'administration du corpus.
+
+## API backend
+
+- `POST /api/auth/register` et `POST /api/auth/login` : authentification JWT ;
+- `POST /api/lords-mobile/chat` : question authentifiée transmise à l'agent en lecture seule ;
+- `GET /api/lords-mobile/threads` : conversations de l'utilisateur courant ;
+- `GET|PUT /api/lords-mobile/profile` : contexte du joueur ;
+- `POST /api/lords-mobile/messages/{messageId}/feedback` : retour utile ou non utile ;
+- `/api/admin/knowledge/**` : catalogue PostgreSQL et indexation RAG, réservés au rôle `ADMIN` ;
+- `GET /api/health` : santé du backend et des services IA.
+
+Le backend écoute sur le port `8080` dans Docker et est publié par défaut sur `http://localhost:8081`. La documentation OpenAPI est disponible sur `http://localhost:8081/swagger-ui.html` après son démarrage.
 
 ## Démarrage de l'infrastructure
 

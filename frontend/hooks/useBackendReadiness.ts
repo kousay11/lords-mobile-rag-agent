@@ -1,266 +1,45 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { refreshModels } from "@/lib/model-cache";
-import { resolveAgentApiUrl, resolveRagApiUrl } from "@/lib/service-urls";
-
-type ReadinessPhase = "checking" | "ready" | "degraded";
-
-type ReadinessSnapshot = {
-  phase: ReadinessPhase;
-  agentReady: boolean;
-  ragReady: boolean;
-  ragWarmup: "idle" | "warming" | "ready" | "error";
-  ragDownloading: boolean;
-  ragDownloadProgress?: number;
-  agentError?: string;
-  ragError?: string;
-  lastCheckedAt?: number;
-};
-
-const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_POLL_INTERVAL_MS = 2_000;
-
-const MODEL_DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes for model download
-
-function resolveMs(raw: string | undefined, fallback: number): number {
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-  return Math.floor(parsed);
-}
+import { useCallback, useEffect, useState } from 'react'
+import { getBackendHealth } from '@/lib/api'
 
 export function useBackendReadiness() {
-  const agentApiUrl = useMemo(
-    () => resolveAgentApiUrl(process.env.NEXT_PUBLIC_AGENT_API_URL),
-    [],
-  );
-  const ragApiUrl = useMemo(
-    () => resolveRagApiUrl(process.env.NEXT_PUBLIC_RAG_API_URL),
-    [],
-  );
+  const [isChecking, setChecking] = useState(true)
+  const [isReady, setReady] = useState(false)
+  const [agentReady, setAgentReady] = useState(false)
+  const [ragReady, setRagReady] = useState(false)
+  const [error, setError] = useState<string>()
 
-  const timeoutMs = resolveMs(
-    process.env.NEXT_PUBLIC_READINESS_TIMEOUT_MS,
-    DEFAULT_TIMEOUT_MS,
-  );
-  const pollIntervalMs = resolveMs(
-    process.env.NEXT_PUBLIC_READINESS_POLL_INTERVAL_MS,
-    DEFAULT_POLL_INTERVAL_MS,
-  );
-
-  const [snapshot, setSnapshot] = useState<ReadinessSnapshot>({
-    phase: "checking",
-    agentReady: false,
-    ragReady: false,
-    ragWarmup: "idle",
-    ragDownloading: false,
-    ragDownloadProgress: 0,
-  });
-
-  const timerRef = useRef<number | null>(null);
-  const runIdRef = useRef(0);
-  const ragWarmupRef = useRef<"idle" | "warming" | "ready" | "error">("idle");
-  const ragDownloadingRef = useRef(false);
-  const downloadStartedAtRef = useRef<number | null>(null);
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current !== null) {
-      window.clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
-
-  const triggerRagWarmup = useCallback(async () => {
-    if (ragWarmupRef.current === "warming" || ragWarmupRef.current === "ready") {
-      return;
-    }
-
-    ragWarmupRef.current = "warming";
+  const check = useCallback(async (background = false) => {
+    if (!background) setChecking(true)
+    setError(undefined)
     try {
-      const response = await fetch(`${ragApiUrl}/warmup`, { method: "POST" });
-      if (!response.ok) {
-        throw new Error(`RAG warmup failed (${response.status}).`);
-      }
-
-      const payload = (await response.json()) as { status?: string };
-      ragWarmupRef.current = payload?.status === "ready" ? "ready" : "warming";
+      const health = await getBackendHealth()
+      const agent = health.agent === 'online'
+      const rag = health.rag === 'online'
+      setAgentReady(agent)
+      setRagReady(rag)
+      setReady(health.status === 'ok' && agent && rag && health.read_only)
     } catch {
-      ragWarmupRef.current = "error";
+      setReady(false)
+      setAgentReady(false)
+      setRagReady(false)
+      setError('Le backend Lords Mobile est indisponible.')
+    } finally {
+      if (!background) setChecking(false)
     }
-  }, [ragApiUrl]);
-
-  const checkOnce = useCallback(async () => {
-    const [agentResult, ragResult] = await Promise.all([
-      (async () => {
-        try {
-          const models = await refreshModels(agentApiUrl);
-          const ready = Array.isArray(models) && models.length > 0;
-          return {
-            ready,
-            error: ready ? undefined : "Agent returned no models.",
-          };
-        } catch (error) {
-          return {
-            ready: false,
-            error: error instanceof Error ? error.message : "Agent check failed.",
-          };
-        }
-      })(),
-      (async () => {
-        try {
-          const response = await fetch(`${ragApiUrl}/health`);
-          if (!response.ok) {
-            throw new Error(`RAG health check failed (${response.status}).`);
-          }
-
-          const payload = (await response.json()) as { status?: string; warmup?: { status?: string }; init?: { progress?: number } };
-          const ready = payload?.status === "ok";
-          const warmupStatus = payload?.warmup?.status;
-          const downloadProgress = payload?.init?.progress ?? 0;
-
-          // Detect model download phase: container is up but model still loading
-          const isDownloading = !ready && (warmupStatus === "warming" || payload?.status === "starting");
-
-          return {
-            ready,
-            error: ready ? undefined : `RAG reported status: ${payload?.status ?? "unknown"}.`,
-            isDownloading,
-            downloadProgress,
-          };
-        } catch (error) {
-          return {
-            ready: false,
-            error: error instanceof Error ? error.message : "RAG check failed.",
-            isDownloading: false,
-            downloadProgress: 0,
-          };
-        }
-      })(),
-    ]);
-
-    if (ragResult.ready && ragWarmupRef.current !== "warming" && ragWarmupRef.current !== "ready") {
-      void triggerRagWarmup();
-    }
-
-    // Track download state
-    if (ragResult.isDownloading && !ragDownloadingRef.current) {
-      ragDownloadingRef.current = true;
-      downloadStartedAtRef.current = Date.now();
-    } else if (!ragResult.isDownloading) {
-      ragDownloadingRef.current = false;
-      downloadStartedAtRef.current = null;
-    }
-
-    return {
-      agentReady: agentResult.ready,
-      ragReady: ragResult.ready,
-      ragDownloading: ragDownloadingRef.current,
-      ragDownloadProgress: ragResult.downloadProgress ?? 0,
-      agentError: agentResult.error,
-      ragError: ragResult.error,
-      ragWarmup: ragWarmupRef.current,
-    };
-  }, [agentApiUrl, ragApiUrl, triggerRagWarmup]);
-
-  const startChecks = useCallback(() => {
-    clearTimer();
-
-    const runId = runIdRef.current + 1;
-    runIdRef.current = runId;
-    const startedAt = Date.now();
-
-    // Reset tracking state
-    ragWarmupRef.current = "idle";
-    ragDownloadingRef.current = false;
-    downloadStartedAtRef.current = null;
-
-    const loop = async () => {
-      const result = await checkOnce();
-      if (runId !== runIdRef.current) return;
-
-      const now = Date.now();
-      const healthy = result.agentReady && result.ragReady;
-
-      if (healthy) {
-        setSnapshot({
-          phase: "ready",
-          ...result,
-          lastCheckedAt: now,
-        });
-        return;
-      }
-
-      // Check model download timeout
-      const downloadTimedOut =
-        result.ragDownloading &&
-        downloadStartedAtRef.current !== null &&
-        now - downloadStartedAtRef.current >= MODEL_DOWNLOAD_TIMEOUT_MS;
-
-      const timedOut = !result.ragDownloading && now - startedAt >= timeoutMs;
-
-      if (downloadTimedOut || timedOut) {
-        setSnapshot({
-          phase: "degraded",
-          ...result,
-          lastCheckedAt: now,
-        });
-        return;
-      }
-
-      setSnapshot((prev) => ({
-        phase: prev.phase === "degraded" ? "degraded" : "checking",
-        ...result,
-        lastCheckedAt: now,
-      }));
-
-      timerRef.current = window.setTimeout(loop, pollIntervalMs);
-    };
-
-    // Run first check immediately (synchronously await) so we know on mount
-    // whether services are already ready. If they are, skip the modal entirely.
-    (async () => {
-      const result = await checkOnce();
-      if (runId !== runIdRef.current) return;
-
-      const now = Date.now();
-      const healthy = result.agentReady && result.ragReady;
-
-      if (healthy) {
-        // Services already ready — skip modal completely
-        setSnapshot({
-          phase: "ready",
-          ...result,
-          lastCheckedAt: now,
-        });
-        return;
-      }
-
-      // Services not ready — show the modal and start polling
-      setSnapshot({
-        phase: "checking",
-        ...result,
-        lastCheckedAt: now,
-      });
-
-      timerRef.current = window.setTimeout(loop, pollIntervalMs);
-    })();
-  }, [checkOnce, clearTimer, pollIntervalMs, timeoutMs]);
+  }, [])
 
   useEffect(() => {
-    startChecks();
-    return () => {
-      runIdRef.current += 1;
-      clearTimer();
-    };
-  }, [clearTimer, startChecks]);
-
-  // Return the actual download progress percentage reported by the API
-  const downloadProgress = snapshot.ragDownloadProgress ?? 0;
+    void check()
+    const interval = window.setInterval(() => { void check(true) }, 10_000)
+    return () => window.clearInterval(interval)
+  }, [check])
 
   return {
-    ...snapshot,
-    isChecking: snapshot.phase === "checking",
-    isReady: snapshot.phase === "ready",
-    isDegraded: snapshot.phase === "degraded",
-    retry: startChecks,
-    downloadProgress,
-  };
+    isChecking,
+    isReady,
+    agentReady,
+    ragReady,
+    error,
+    retry: () => check(false),
+  }
 }

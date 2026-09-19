@@ -1,0 +1,8 @@
+import { FormEvent, KeyboardEvent } from 'react'
+import { RotateCcw, Send, Sparkles } from 'lucide-react'
+import { ShimmerButton } from '@/components/ui/shimmer-button'
+
+export function ChatComposer({ value, onChange, onSubmit, onReset, loading }: { value: string; onChange: (value: string) => void; onSubmit: (event?: FormEvent) => void; onReset: () => void; loading: boolean }) {
+  const keyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); onSubmit() } }
+  return <form onSubmit={onSubmit} className="border-t border-primary/20 bg-[#0b0e11]/95 p-3 backdrop-blur-xl sm:p-4"><div className="mx-auto max-w-3xl"><div className="game-panel flex items-end gap-2 p-2 shadow-blue"><Sparkles className="mb-3 ml-2 h-4 w-4 shrink-0 text-accent" /><textarea value={value} onChange={(event) => onChange(event.target.value)} onKeyDown={keyDown} rows={1} maxLength={8000} placeholder="Consultez le Sage du Royaume…" className="max-h-36 min-h-12 flex-1 resize-none bg-transparent px-2 py-3 text-sm outline-none placeholder:text-muted/55" aria-label="Votre question" /><button type="button" onClick={onReset} className="mb-1 p-3 text-muted transition hover:text-primary" title="Nouvelle conversation" aria-label="Nouvelle conversation"><RotateCcw className="h-4 w-4" /></button><ShimmerButton disabled={!value.trim() || loading} className="mb-0 px-3 py-3" aria-label="Envoyer la question"><Send className="h-4 w-4" /></ShimmerButton></div><div className="mt-2 flex justify-between px-2 font-mono text-[9px] uppercase tracking-wider text-muted/70"><span>Entrée pour envoyer · Maj+Entrée pour une ligne</span><span>Conseils fondés sur les archives</span></div></div></form>
+}

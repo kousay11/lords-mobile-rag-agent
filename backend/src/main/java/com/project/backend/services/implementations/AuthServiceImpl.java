@@ -33,11 +33,13 @@ public class AuthServiceImpl implements AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already in use");
         }
 
-        User.ProfileRole profileRole = User.ProfileRole.TECHNICAL;
-        try {
-            profileRole = User.ProfileRole.valueOf(request.getProfileRole().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            // Default to TECHNICAL if invalid value
+        User.ProfileRole profileRole = User.ProfileRole.PLAYER;
+        if (request.getProfileRole() != null && !request.getProfileRole().isBlank()) {
+            try {
+                profileRole = User.ProfileRole.valueOf(request.getProfileRole().toUpperCase());
+            } catch (IllegalArgumentException ignored) {
+                // Keep PLAYER for legacy or unknown frontend values.
+            }
         }
 
         User user = User.builder()

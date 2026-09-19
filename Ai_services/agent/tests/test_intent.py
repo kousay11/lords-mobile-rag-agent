@@ -34,6 +34,9 @@ class IntentTests(unittest.TestCase):
 
     def test_language_topic_and_version_extraction(self):
         self.assertEqual(detect_language("Which hero is best?"), "en")
+        self.assertEqual(
+            detect_language("Comment gagner cette bataille ?", requested="en"), "fr"
+        )
         self.assertEqual(detect_language("ما هو أفضل بطل؟"), "ar")
         self.assertEqual(extract_game_version("Dans la version 2.18"), "2.18")
         self.assertIn("jewels", extract_topics("Quels joyaux pour la cavalerie ?"))
@@ -44,6 +47,13 @@ class IntentTests(unittest.TestCase):
         self.assertFalse(
             needs_clarification(
                 "Quel est le meilleur héros pour la chasse ?", "recommendation", {}
+            )
+        )
+
+    def test_universal_battle_claim_requires_clarification(self):
+        self.assertTrue(
+            needs_clarification(
+                "Comment garantir que je gagne toutes les batailles ?", "how_to", {}
             )
         )
 

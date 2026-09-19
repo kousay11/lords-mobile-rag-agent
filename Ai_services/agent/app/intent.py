@@ -31,6 +31,16 @@ _LEGACY_SCOPE = re.compile(
     r"\b(qos|packet loss|latency|jitter|throughput|mininet|openflow|sla réseau|network routing)\b",
     re.IGNORECASE,
 )
+_BROAD_BATTLE_REQUEST = re.compile(
+    r"\b(?:"
+    r"toutes?\s+les\s+(?:batailles|combats)|tous\s+les\s+combats|"
+    r"toujours\s+gagner|garantir\w*\s+(?:la\s+)?victoire|"
+    r"(?:être|etre)\s+vainqueur\w*\s+(?:dans|de)\s+tout|"
+    r"every\s+battle|all\s+battles|always\s+win|guarantee\w*\s+(?:a\s+)?win|"
+    r"الفوز\s+في\s+كل|أضمن\s+الفوز"
+    r")\b",
+    re.IGNORECASE,
+)
 
 _TOPICS: dict[str, tuple[str, ...]] = {
     "heroes": ("héros", "hero", "heroes", "بطل", "أبطال"),
@@ -46,13 +56,22 @@ _TOPICS: dict[str, tuple[str, ...]] = {
 
 
 def detect_language(text: str, requested: str | None = None) -> str:
-    if requested:
-        return requested
     if re.search(r"[\u0600-\u06ff]", text):
         return "ar"
-    if re.search(r"\b(the|what|which|how|should|best|with|for)\b", text, re.IGNORECASE):
+    if re.search(
+        r"[àâçéèêëîïôùûüÿœ]|\b(?:bonjour|salut|comment|quel(?:le)?s?|je|mon|ma|mes|"
+        r"pour|avec|dans|gagner|bataille|combat|troupe|héros|royaume)\b",
+        text,
+        re.IGNORECASE,
+    ):
+        return "fr"
+    if re.search(
+        r"\b(?:hello|hi|the|what|which|how|should|best|with|for|win|battle|troop|hero)\b",
+        text,
+        re.IGNORECASE,
+    ):
         return "en"
-    return "fr"
+    return requested if requested in {"fr", "en", "ar"} else "fr"
 
 
 def classify_intent(text: str) -> Intent:
@@ -97,6 +116,8 @@ def extract_game_version(text: str, requested: str | None = None) -> str | None:
 
 def needs_clarification(text: str, intent: Intent, player_context: dict | None = None) -> bool:
     if intent == "unclear":
+        return True
+    if _BROAD_BATTLE_REQUEST.search(text):
         return True
     if intent == "recommendation":
         lowered = text.lower()

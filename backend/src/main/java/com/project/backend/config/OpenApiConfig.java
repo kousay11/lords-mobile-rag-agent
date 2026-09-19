@@ -24,8 +24,8 @@ public class OpenApiConfig {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")))
                 .info(new Info()
-                        .title("QoSentry API")
+                        .title("Lords Mobile Guide API")
                         .version("v1")
-                        .description("QoSentry backend REST API"));
+                        .description("Authenticated API for the read-only Lords Mobile RAG agent"));
     }
 }

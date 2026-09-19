@@ -44,7 +44,7 @@ export function useAuth(): UseAuthReturn {
       saveToken(token)
       saveUserInfo(username, role, profileRole)
       setAuthState({ isAuthenticated: true, username, role })
-      router.push('/dashboard')
+      router.push('/chat')
     },
     [router]
   )

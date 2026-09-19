@@ -50,6 +50,12 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.valueOf(ex.getStatusCode().value()), ex.getReason(), request.getRequestURI());
     }
 
+    @ExceptionHandler(DownstreamServiceException.class)
+    public ResponseEntity<ErrorResponseDto> handleDownstream(
+            DownstreamServiceException ex, HttpServletRequest request) {
+        return build(ex.getStatus(), ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponseDto> handleGeneric(Exception ex, HttpServletRequest request) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), request.getRequestURI());

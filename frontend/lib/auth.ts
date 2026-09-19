@@ -1,9 +1,9 @@
 import { jwtDecode } from 'jwt-decode'
 
-const TOKEN_KEY = 'qosentry_token'
-const USERNAME_KEY = 'qosentry_username'
-const ROLE_KEY = 'qosentry_role'
-const PROFILE_ROLE_KEY = 'qosentry_profile_role'
+const TOKEN_KEY = 'lords_mobile_token'
+const USERNAME_KEY = 'lords_mobile_username'
+const ROLE_KEY = 'lords_mobile_role'
+const PROFILE_ROLE_KEY = 'lords_mobile_profile_role'
 
 interface JwtPayload {
   sub?: string

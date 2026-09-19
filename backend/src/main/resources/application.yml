@@ -1,28 +1,28 @@
 spring:
   application:
-    name: qosentry-backend
+    name: lords-mobile-guide-backend
 
   main:
     allow-circular-references: true
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/qosentry
-    username: admin
-    password: admin
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/lords_mobile}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
     driver-class-name: org.postgresql.Driver
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: update
     show-sql: true
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      repositories:
+        enabled: false
 
 springdoc:
   swagger-ui:
@@ -33,10 +33,17 @@ server:
 
 app:
   jwt:
-    secret: CHANGE_ME_32_CHAR_SECRET_KEY_HERE
-    expiration-ms: 86400000
+    secret: ${APP_JWT_SECRET:CHANGE_ME_32_CHAR_SECRET_KEY_HERE}
+    expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
   ai:
-    anomaly-base-url: ${AI_ANOMALY_BASE_URL:http://localhost:8003}
-    sla-base-url: ${AI_SLA_BASE_URL:http://localhost:8004}
     agent-base-url: ${AI_AGENT_BASE_URL:http://localhost:8002}
     rag-base-url: ${AI_RAG_BASE_URL:http://localhost:8001}
+    connect-timeout-ms: ${AI_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${AI_READ_TIMEOUT_MS:90000}
+  rate-limit:
+    chat-requests-per-minute: ${CHAT_REQUESTS_PER_MINUTE:30}
+  bootstrap-admin:
+    enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+    username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:admin@example.invalid}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}

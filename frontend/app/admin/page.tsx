@@ -94,7 +94,7 @@ export default function AdminPage() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
               <Activity className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold text-gradient">QoSentry</span>
+            <span className="font-bold text-gradient">Lords Mobile Guide</span>
             <span className="text-border mx-2">|</span>
             <span className="text-sm text-muted font-medium">Admin Panel</span>
           </div>

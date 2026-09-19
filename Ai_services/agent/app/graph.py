@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 from typing import Annotated, Any, NotRequired, TypedDict
 
 import httpx
@@ -26,6 +27,11 @@ from prompts import build_grounded_prompt
 
 RAG_URL = os.getenv("RAG_SERVICE_URL", "http://rag:8001").rstrip("/")
 MAX_CONTEXT_CHUNKS = 8
+_CITATION_PATTERN = re.compile(r"\[(\d+)]")
+_PERCENT_PATTERN = re.compile(
+    r"\b\d+(?:[.,]\d+)?\s*(?:[-–—]\s*\d+(?:[.,]\d+)?)?\s*%"
+)
+_QUOTED_TERM_PATTERN = re.compile(r"[\"“«]([^\"”»\n]{2,80})[\"”»]")
 
 
 class LordsMobileState(TypedDict):
@@ -98,6 +104,44 @@ def extract_game_context_node(state: LordsMobileState) -> dict[str, Any]:
         "game_version": extract_game_version(query, state.get("game_version")),
         "player_context": player_context,
         "needs_clarification": needs_clarification(query, intent, player_context),
+    }
+
+
+def route_after_context_extraction(state: LordsMobileState) -> str:
+    return "clarification_answer" if state.get("needs_clarification") else "rewrite_query"
+
+
+def _clarification_message(language: str) -> str:
+    messages = {
+        "fr": (
+            "Aucune stratégie ne peut garantir une victoire dans toutes les batailles. "
+            "Pour vous donner un conseil documenté, précisez le type de bataille "
+            "(joueur contre joueur, Sombre nid, Colisée ou niveau), les troupes repérées "
+            "chez l’adversaire et les types de troupes que vous pouvez engager."
+        ),
+        "en": (
+            "No strategy can guarantee victory in every battle. For sourced advice, "
+            "specify the battle type (player versus player, Darknest, Colosseum, or stage), "
+            "the enemy troops you scouted, and the troop types you can deploy."
+        ),
+        "ar": (
+            "لا توجد استراتيجية تضمن الفوز في كل المعارك. للحصول على نصيحة موثقة، "
+            "حدّد نوع المعركة، وقوات الخصم التي كشفتها، وأنواع القوات التي يمكنك إرسالها."
+        ),
+    }
+    return messages.get(language, messages["fr"])
+
+
+def clarification_answer_node(state: LordsMobileState) -> dict[str, Any]:
+    return {
+        "messages": [AIMessage(content=_clarification_message(state.get("language", "fr")))],
+        "sources": [],
+        "context": "",
+        "retrieved_documents": [],
+        "rewritten_queries": [],
+        "confidence": 0.0,
+        "needs_clarification": True,
+        "generation_mode": "deterministic_clarification",
     }
 
 
@@ -184,8 +228,10 @@ async def retrieve_node(
 def _source_from_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
     metadata = chunk.get("metadata", {})
     return {
+        "chunk_id": metadata.get("chunk_id"),
         "document_id": metadata.get("document_id"),
         "title": metadata.get("title") or metadata.get("source") or "Source",
+        "content": str(chunk.get("text", "")).strip(),
         "url": metadata.get("url"),
         "source_type": metadata.get("source_type"),
         "language": metadata.get("language"),
@@ -198,15 +244,9 @@ def _source_from_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
 
 def validate_context_node(state: LordsMobileState) -> dict[str, Any]:
     chunks = state.get("retrieved_documents", [])
-    sources_by_document: dict[str, dict[str, Any]] = {}
-    for chunk in chunks:
-        source = _source_from_chunk(chunk)
-        key = str(source.get("document_id") or source.get("title"))
-        previous = sources_by_document.get(key)
-        if previous is None or source["score"] > previous["score"]:
-            sources_by_document[key] = source
-
-    sources = list(sources_by_document.values())
+    # Keep exactly one source entry per context block so [n] always maps to
+    # the same passage in both the prompt and the frontend evidence panel.
+    sources = [_source_from_chunk(chunk) for chunk in chunks]
     if chunks:
         top_scores = [float(item.get("score", 0)) for item in chunks[:3]]
         score_signal = sum(top_scores) / len(top_scores)
@@ -292,6 +332,35 @@ def _fallback_grounded_answer(state: LordsMobileState) -> str:
     return "\n".join([heading, *excerpts, warning])
 
 
+def _normalize_evidence(value: str) -> str:
+    return re.sub(r"\s+", " ", value.lower().replace("–", "-").replace("—", "-")).strip()
+
+
+def grounding_issues(content: str, chunks: list[dict[str, Any]]) -> list[str]:
+    """Detect high-risk claims that cannot be traced to retrieved evidence."""
+    issues: list[str] = []
+    citations = [int(value) for value in _CITATION_PATTERN.findall(content)]
+    if not citations:
+        issues.append("missing_citation")
+    elif any(value < 1 or value > len(chunks) for value in citations):
+        issues.append("invalid_citation")
+
+    evidence = _normalize_evidence(
+        "\n".join(str(chunk.get("text", "")) for chunk in chunks)
+    )
+    answer_without_citations = _CITATION_PATTERN.sub("", content)
+    for numeric_claim in _PERCENT_PATTERN.findall(answer_without_citations):
+        if _normalize_evidence(numeric_claim) not in evidence:
+            issues.append(f"unsupported_percentage:{numeric_claim.strip()}")
+
+    for quoted_term in _QUOTED_TERM_PATTERN.findall(answer_without_citations):
+        normalized = _normalize_evidence(quoted_term)
+        if re.search(r"[a-zà-ÿ]", normalized) and normalized not in evidence:
+            issues.append(f"unsupported_quoted_term:{quoted_term.strip()}")
+
+    return issues
+
+
 async def generate_node(
     state: LordsMobileState, config: RunnableConfig
 ) -> dict[str, Any]:
@@ -319,7 +388,16 @@ async def generate_node(
         history = list(state.get("messages", []))[-12:]
         response = await llm.ainvoke([SystemMessage(content=system_prompt), *history])
         content = response.content if isinstance(response.content, str) else str(response.content)
-        mode = "llm"
+        issues = grounding_issues(content, chunks)
+        if issues:
+            print(
+                "Warning: LLM answer failed grounding validation, using grounded fallback: "
+                + ", ".join(issues)
+            )
+            content = _fallback_grounded_answer(state)
+            mode = "grounding_fallback"
+        else:
+            mode = "llm"
     except Exception as error:
         print(f"Warning: LLM generation unavailable, using grounded fallback: {error}")
         content = _fallback_grounded_answer(state)
@@ -344,6 +422,7 @@ def build_graph(checkpointer=None):
     builder.add_node("classify_intent", classify_node)
     builder.add_node("direct_answer", direct_answer_node)
     builder.add_node("extract_game_context", extract_game_context_node)
+    builder.add_node("clarification_answer", clarification_answer_node)
     builder.add_node("rewrite_query", rewrite_node)
     builder.add_node("retrieve", retrieve_node)
     builder.add_node("validate_context", validate_context_node)
@@ -359,7 +438,15 @@ def build_graph(checkpointer=None):
         },
     )
     builder.add_edge("direct_answer", END)
-    builder.add_edge("extract_game_context", "rewrite_query")
+    builder.add_conditional_edges(
+        "extract_game_context",
+        route_after_context_extraction,
+        {
+            "clarification_answer": "clarification_answer",
+            "rewrite_query": "rewrite_query",
+        },
+    )
+    builder.add_edge("clarification_answer", END)
     builder.add_edge("rewrite_query", "retrieve")
     builder.add_edge("retrieve", "validate_context")
     builder.add_edge("validate_context", "generate_answer")

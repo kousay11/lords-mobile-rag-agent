@@ -2,64 +2,20 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { Activity, Database } from 'lucide-react'
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
-import { isAuthenticated } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
+import { Archive, Castle, LogOut, Settings, ShieldCheck } from 'lucide-react'
 import { BackendReadinessGate } from '@/components/backend-readiness-gate'
+import { AtmosphericBackground } from '@/components/layout/atmospheric-background'
+import { getRole, isAuthenticated } from '@/lib/auth'
+import { useAuth } from '@/hooks/useAuth'
 import './chat-theme.css'
 
 export default function ChatLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const pathname = usePathname()
+  const { logout } = useAuth()
   const [mounted, setMounted] = useState(false)
+  useEffect(() => { if (!isAuthenticated()) router.replace('/login'); else setMounted(true) }, [router])
+  if (!mounted) return <div className="min-h-screen bg-background" />
 
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      router.replace('/login')
-      return
-    }
-    setMounted(true)
-  }, [router])
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-      </div>
-    )
-  }
-
-  return (
-    <NuqsAdapter>
-      <BackendReadinessGate>
-        <div className="chat-theme flex h-screen flex-col bg-background text-text-main">
-          <header className="z-40 border-b border-border bg-surface/70 backdrop-blur-md">
-            <div className="mx-auto flex h-14 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-              <Link href="/dashboard" className="flex items-center gap-3 group">
-                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Activity className="w-4 h-4 text-white" />
-                </div>
-                <span className="font-bold text-gradient">QoSentry</span>
-              </Link>
-              <div className="flex items-center gap-2">
-                {pathname !== '/chat/documents' && (
-                  <Link
-                    href="/chat/documents"
-                    className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted hover:text-text-main hover:bg-surface"
-                  >
-                    <Database className="h-3.5 w-3.5" />
-                    Documents
-                  </Link>
-                )}
-              </div>
-            </div>
-          </header>
-          <div className="flex-1 min-h-0 overflow-auto">
-            {children}
-          </div>
-        </div>
-      </BackendReadinessGate>
-    </NuqsAdapter>
-  )
+  return <BackendReadinessGate><div className="relative flex h-screen flex-col overflow-hidden bg-background text-text-main"><AtmosphericBackground /><header className="relative z-40 border-b border-primary/30 bg-[#0b0e11]/95 shadow-[0_8px_30px_rgba(0,0,0,.4)]"><div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-4 lg:px-6"><Link href="/" className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center border border-primary/60 bg-primary/10 text-primary"><Castle className="h-5 w-5" /></span><span><strong className="block font-display text-xs tracking-[.16em] text-gold-bright">KINGDOM SAGE</strong><small className="text-[8px] uppercase tracking-[.2em] text-muted">Strategy Command</small></span></Link><div className="hidden items-center gap-2 border-x border-border/40 px-4 text-[9px] uppercase tracking-[.18em] text-muted sm:flex"><ShieldCheck className="h-3.5 w-3.5 text-accent" /><span>Assistant Lords Mobile</span><span className="h-1 w-1 rounded-full bg-accent shadow-blue" /><span>Réponses sourcées</span></div><nav className="flex items-center gap-1"><Link href="/guides" className="hidden px-3 py-2 text-[10px] uppercase tracking-wider text-muted hover:text-primary md:block">Guides</Link><Link href="/settings" className="p-2 text-muted hover:text-primary" title="Profil joueur"><Settings className="h-4 w-4" /></Link>{getRole() === 'ADMIN' && <Link href="/chat/documents" className="p-2 text-muted hover:text-primary" title="Archives administrateur"><Archive className="h-4 w-4" /></Link>}<button onClick={logout} className="p-2 text-muted hover:text-danger" title="Déconnexion" aria-label="Déconnexion"><LogOut className="h-4 w-4" /></button></nav></div></header><div className="relative min-h-0 flex-1">{children}</div></div></BackendReadinessGate>
 }
