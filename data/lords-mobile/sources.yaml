@@ -1,0 +1,153 @@
+# Sources autorisées pour le corpus Lords Mobile RAG
+# Seules les URLs listées ici peuvent être téléchargées par scripts/scrape_lords_mobile.py
+# Domaines autorisés : lordsmobile.igg.com, lordsmobile.fandom.com
+# Ajouter une entrée = revue manuelle obligatoire avant --execute
+
+allowed_domains:
+  - lordsmobile.igg.com
+  - lordsmobile.fandom.com
+
+defaults:
+  language: en
+  game_version: "2025-review"
+  source_type: verified_community
+  reliability: 3
+  status: needs_review
+  collected_at: "2026-09-28T00:00:00Z"
+
+sources:
+  - id: wiki-monster-hunting-en-001
+    url: https://lordsmobile.fandom.com/wiki/Monster_Hunting
+    title: "Monster Hunting — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [monster-hunt, guild, heroes]
+    entity_type: game_mode
+    entity_name: monster-hunt
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Monster_Hunting
+    output_path: community/wiki-monster-hunting.md
+    format: wiki-api
+
+  - id: wiki-monster-list-en-001
+    url: https://lordsmobile.fandom.com/wiki/Monster
+    title: "Monster list — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [monster-hunt, combat]
+    entity_type: game_mode
+    entity_name: monster-list
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Monster
+    output_path: community/wiki-monster-list.md
+    format: wiki-api
+
+  - id: wiki-hero-en-001
+    url: https://lordsmobile.fandom.com/wiki/Hero
+    title: "Heroes — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [heroes, combat, progression]
+    entity_type: hero
+    entity_name: heroes
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Hero
+    output_path: community/wiki-heroes.md
+    format: wiki-api
+
+  - id: wiki-darknest-en-001
+    url: https://lordsmobile.fandom.com/wiki/Darknest
+    title: "Darknest — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [darknests, guild, rallies]
+    entity_type: game_mode
+    entity_name: darknest
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Darknest
+    output_path: community/wiki-darknest.md
+    format: wiki-api
+
+  - id: wiki-jewels-en-001
+    url: https://lordsmobile.fandom.com/wiki/Jewels
+    title: "Jewels — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [jewels, equipment, progression]
+    entity_type: item_system
+    entity_name: jewels
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Jewel
+    output_path: community/wiki-jewels.md
+    format: wiki-api
+
+  - id: wiki-equipment-en-001
+    url: https://lordsmobile.fandom.com/wiki/Equipment
+    title: "Equipment — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [equipment, construction, research]
+    entity_type: equipment_set
+    entity_name: equipment
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Equipment
+    output_path: community/wiki-equipment.md
+    format: wiki-api
+
+  - id: wiki-guild-en-001
+    url: https://lordsmobile.fandom.com/wiki/Guild
+    title: "Guild — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [guild, events, progression]
+    entity_type: game_mode
+    entity_name: guild
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Guild
+    output_path: community/wiki-guild.md
+    format: wiki-api
+
+  - id: wiki-dragon-arena-en-001
+    url: https://lordsmobile.fandom.com/wiki/Dragon_Arena
+    title: "Dragon Arena — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2025-review"
+    topics: [events, guild, combat]
+    entity_type: event
+    entity_name: dragon-arena
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Dragon_Arena
+    output_path: community/wiki-dragon-arena.md
+    format: wiki-api

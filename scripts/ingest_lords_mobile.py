@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_DIR = PROJECT_ROOT / "data" / "lords-mobile"
 TEXT_EXTENSIONS = {".md", ".markdown", ".txt"}
+PDF_EXTENSIONS = {".pdf"}
 
 
 def read_manifest(path: Path) -> list[dict]:
@@ -45,6 +46,22 @@ def safe_source_path(data_dir: Path, relative_path: str) -> Path:
     return source
 
 
+def extract_pdf_text(source_path: Path) -> str:
+    """Extrait le texte d'un PDF en local (nécessite pypdf)."""
+    try:
+        from pypdf import PdfReader
+    except ImportError as error:
+        raise ValueError(
+            f"PDF {source_path.name}: pypdf manquant (pip install -r scripts/requirements-scrape.txt). "
+            "Alternative: import via RAG POST /ingest/file depuis la partie admin."
+        ) from error
+    reader = PdfReader(str(source_path))
+    text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    if len(text.strip()) < 200:
+        raise ValueError(f"PDF {source_path.name}: texte extrait trop court ({len(text)} chars) — scan image ?")
+    return text
+
+
 def to_document(data_dir: Path, record: dict) -> dict | None:
     relative_path = record.get("path")
     if not relative_path:
@@ -53,8 +70,13 @@ def to_document(data_dir: Path, record: dict) -> dict | None:
     source_path = safe_source_path(data_dir, str(relative_path))
     if not source_path.is_file():
         raise ValueError(f"Source file not found: {source_path}")
-    if source_path.suffix.lower() not in TEXT_EXTENSIONS:
-        print(f"SKIP {record.get('id', source_path.name)}: PDF ingestion will be added with the document pipeline")
+    suffix = source_path.suffix.lower()
+    if suffix in PDF_EXTENSIONS:
+        text = extract_pdf_text(source_path)
+    elif suffix in TEXT_EXTENSIONS:
+        text = source_path.read_text(encoding="utf-8")
+    else:
+        print(f"SKIP {record.get('id', source_path.name)}: extension {suffix} non supportée (.md/.txt/.pdf)")
         return None
 
     required = (
@@ -72,7 +94,7 @@ def to_document(data_dir: Path, record: dict) -> dict | None:
     }
     metadata["document_id"] = str(record["id"])
     metadata["source"] = metadata.get("source") or source_path.name
-    return {"text": source_path.read_text(encoding="utf-8"), "metadata": metadata}
+    return {"text": text, "metadata": metadata}
 
 
 def post_batch(rag_url: str, documents: list[dict]) -> dict:

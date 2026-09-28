@@ -1,7 +1,8 @@
 # Scripts d'exploitation
 
-- `collect_lords_mobile_sources.py` : prévisualise par défaut les téléchargements explicitement présents dans le manifeste. Ajouter `--execute` pour les réaliser.
-- `ingest_lords_mobile.py` : envoie les fichiers Markdown et texte locaux vers le RAG. Exécuter d'abord avec `--dry-run`.
+- `collect_lords_mobile_sources.py` : legacy — prévisualise les `download_url` du manifeste (aucun par défaut, tout est SKIP). Gardé pour compat.
+- `scrape_lords_mobile.py` : nouveau pipeline recommandé. Lit `data/lords-mobile/sources.yaml` (allowlist), `--dry-run` par défaut, `--execute` pour télécharger + MAJ `manifest.jsonl`. Wiki Fandom via MediaWiki API (contourne 403 HTML), IGG officiel en HTML direct. `pip install -r scripts/requirements-scrape.txt`.
+- `ingest_lords_mobile.py` : envoie les fichiers Markdown, texte ET PDF locaux vers le RAG. Exécuter d'abord avec `--dry-run`. PDF extrait en local via pypdf.
 - `start.ps1` : crée un `.env` local s'il manque puis démarre Docker Compose ; utiliser `-Build` pour reconstruire les images.
 - `validate.ps1` : valide la configuration Docker Compose et la syntaxe Python, sans service externe.
 
