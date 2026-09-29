@@ -40,7 +40,7 @@ Sous PowerShell, `scripts/start.ps1 -Build` effectue la même opération. `scrip
 Les documents sont conservés sous `data/lords-mobile/`. La collecte ne télécharge que les URLs explicitement déclarées dans le manifeste et l'ingestion n'exécute aucune action de jeu ni de compte.
 
 ```powershell
-python scripts/collect_lords_mobile_sources.py
+python scripts/scrape_lords_mobile.py --dry-run
 python scripts/ingest_lords_mobile.py --dry-run
 ```
 
