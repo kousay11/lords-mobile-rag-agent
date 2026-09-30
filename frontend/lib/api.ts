@@ -123,6 +123,9 @@ export const saveFeedback = async (
 }
 
 export interface PlayerProfile {
+  responseLength?: 'short' | 'standard' | 'detailed' | null
+  versionMode?: 'unknown' | 'specific' | null
+  setupCompleted?: boolean
   language?: string | null
   gameVersion?: string | null
   playerLevel?: string | null
@@ -130,6 +133,18 @@ export interface PlayerProfile {
   kingdom?: string | null
   additionalContext?: Record<string, unknown> | null
 }
+export interface ProfileVersionOption {
+  value: string
+  label: string
+  kind: 'review' | 'release' | 'guide' | 'corpus'
+  documentCount: number
+  needsReviewCount: number
+  archivedCount: number
+}
+export const getProfileVersionOptions = async () =>
+  (await apiClient.get<ProfileVersionOption[]>('/api/lords-mobile/profile/version-options')).data
+export const getProfileVersions = async () =>
+  (await apiClient.get<string[]>('/api/lords-mobile/profile/versions')).data
 export const getPlayerProfile = async () =>
   (await apiClient.get<PlayerProfile>('/api/lords-mobile/profile')).data
 export const updatePlayerProfile = async (data: PlayerProfile) =>
@@ -181,6 +196,10 @@ export const listKnowledgeDocuments = async () =>
   (await apiClient.get<KnowledgeDocument[]>('/api/admin/knowledge/documents')).data
 export const createKnowledgeDocument = async (data: KnowledgeDocumentRequest) =>
   (await apiClient.post<KnowledgeDocument>('/api/admin/knowledge/documents', data)).data
+export const uploadKnowledgeDocument = async (form: FormData) =>
+  (await apiClient.post<KnowledgeDocument>('/api/admin/knowledge/documents/upload', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })).data
 export const indexKnowledgeDocument = async (id: string) =>
   (await apiClient.post<KnowledgeDocument>(`/api/admin/knowledge/documents/${id}/index`)).data
 export const deleteKnowledgeDocument = async (id: string) => {

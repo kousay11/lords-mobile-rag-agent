@@ -16,7 +16,6 @@ from langgraph.graph.message import add_messages
 
 from intent import (
     classify_intent,
-    detect_language,
     extract_game_version,
     extract_topics,
     needs_clarification,
@@ -84,7 +83,8 @@ def get_llm(
 def classify_node(state: LordsMobileState) -> dict[str, Any]:
     query = _latest_question(state)
     intent = classify_intent(query)
-    language = detect_language(query, state.get("language"))
+    requested_language = state.get("language")
+    language = requested_language if requested_language in {"fr", "en", "ar"} else "fr"
     return {"intent": intent, "language": language}
 
 
@@ -164,8 +164,7 @@ async def _retrieve_one(
         "query": query,
         "top_k": top_k,
         "search_type": search_type,
-        # The initial approved corpus is French. Answer language is handled by the LLM.
-        "language": "fr",
+        # Search across source languages; the saved preference controls the answer.
         "statuses": statuses,
         "min_reliability": min_reliability,
         "min_relevance_score": min_score,
@@ -192,6 +191,11 @@ async def retrieve_node(
     min_reliability = max(1, min(int(cfg.get("min_reliability", 4)), 5))
     game_version = state.get("game_version")
     statuses = ["active", "deprecated"] if game_version else ["active"]
+    # A deliberately selected annual review corpus can be consulted with reservations.
+    # Unspecified versions retain the validated-only policy; no document is promoted.
+    if game_version and re.fullmatch(r"\d{4}-review", game_version):
+        statuses = ["active", "needs_review"]
+        min_reliability = max(3, min_reliability - 1)
 
     batches = await asyncio.gather(
         *[
@@ -308,7 +312,9 @@ def direct_answer_node(state: LordsMobileState) -> dict[str, Any]:
 
 def _fallback_grounded_answer(state: LordsMobileState) -> str:
     language = state.get("language", "fr")
-    chunks = state.get("retrieved_documents", [])[:2]
+    length = (state.get("player_context") or {}).get("response_length", "standard")
+    count = {"short": 1, "standard": 2, "detailed": 3}.get(length, 2)
+    chunks = state.get("retrieved_documents", [])[:count]
     if not chunks:
         if language == "en":
             return "I did not find reliable enough evidence in the corpus. Please specify the topic or game version."
@@ -316,20 +322,28 @@ def _fallback_grounded_answer(state: LordsMobileState) -> str:
             return "لم أجد دليلاً موثوقًا كافيًا في المصادر. يرجى تحديد الموضوع أو إصدار اللعبة."
         return "Je n’ai pas trouvé de preuve suffisamment fiable dans le corpus. Précisez le sujet ou la version du jeu."
 
-    excerpts = []
-    for index, chunk in enumerate(chunks, 1):
-        text = " ".join(str(chunk.get("text", "")).split())[:600]
-        excerpts.append(f"- {text} [{index}]")
     if language == "en":
-        heading = "The available documents indicate:"
-        warning = "Check the source version before relying on exact values."
+        return (
+            "The available documents contain evidence relevant to this question. "
+            f"Review evidence item(s) {', '.join(f'[{index}]' for index in range(1, len(chunks) + 1))} "
+            "in the RAG evidence panel for the exact source excerpts. "
+            "Check the source version before relying on exact values."
+        )
     elif language == "ar":
-        heading = "تشير الوثائق المتاحة إلى ما يلي:"
-        warning = "تحقق من إصدار المصدر قبل الاعتماد على القيم الدقيقة."
+        return (
+            "تتضمن الوثائق المتاحة أدلة مرتبطة بهذا السؤال. "
+            f"راجع الأدلة {', '.join(f'[{index}]' for index in range(1, len(chunks) + 1))} "
+            "في لوحة أدلة RAG للاطلاع على مقتطفات المصادر. "
+            "تحقق من إصدار المصدر قبل الاعتماد على القيم الدقيقة."
+        )
     else:
         heading = "Les documents disponibles indiquent :"
         warning = "Vérifiez la version de la source avant d’utiliser une valeur précise."
-    return "\n".join([heading, *excerpts, warning])
+        excerpts = [
+            f"- Consultez la preuve [{index}] dans le panneau Preuves RAG."
+            for index in range(1, len(chunks) + 1)
+        ]
+        return "\n".join([heading, *excerpts, warning])
 
 
 def _normalize_evidence(value: str) -> str:
@@ -402,6 +416,14 @@ async def generate_node(
         print(f"Warning: LLM generation unavailable, using grounded fallback: {error}")
         content = _fallback_grounded_answer(state)
         mode = "safe_fallback"
+
+    if any(chunk.get("metadata", {}).get("status") == "needs_review" for chunk in chunks):
+        warning = {
+            "fr": "Sources avec réserves : ce corpus n’est pas entièrement validé ; son année ne garantit pas sa compatibilité avec la version actuelle du jeu.",
+            "en": "Sources awaiting review: this corpus is not yet validated; its year does not guarantee compatibility with the current game version.",
+            "ar": "مصادر قيد المراجعة: هذه المجموعة لم تُعتمد بعد، ولا تضمن سنتها التوافق مع الإصدار الحالي للعبة.",
+        }.get(state.get("language", "fr"))
+        content = f"{warning}\n\n{content}"
 
     ai_message = AIMessage(
         content=content,

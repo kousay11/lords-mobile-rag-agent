@@ -409,7 +409,7 @@ def main() -> int:
                 "source_type": src.get("source_type", defaults.get("source_type", "verified_community")),
                 "language": src.get("language", defaults.get("language", "en")),
                 "game_version": src.get("game_version", defaults.get("game_version", "2025-review")),
-                "published_at": src.get("published_at", entry.get("published_at", "2025-01-01")),
+                "published_at": src.get("published_at", entry.get("published_at")),
                 "collected_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "topics": src.get("topics", entry.get("topics", ["guides"])),
                 "entity_type": src.get("entity_type", entry.get("entity_type", "guide")),

@@ -24,7 +24,13 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.text.PDFTextStripper;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -32,6 +38,10 @@ public class KnowledgeService {
 
     private static final TypeReference<List<String>> STRING_LIST_TYPE = new TypeReference<>() {
     };
+
+    private static final Set<String> ALLOWED_UPLOAD_EXTENSIONS = Set.of(".pdf", ".md", ".markdown", ".txt");
+    private static final long MAX_UPLOAD_BYTES = 20_971_520L;
+    private static final int MIN_EXTRACTED_CHARS = 200;
 
     private final KnowledgeDocumentRepository repository;
     private final RagClient ragClient;
@@ -61,6 +71,65 @@ public class KnowledgeService {
                 .qdrantChunks(0)
                 .build();
         return toDto(repository.save(document));
+    }
+
+    @Transactional
+    public KnowledgeDocumentDto createFromFile(MultipartFile file, String title, String source, String url,
+            String sourceType, String language, String gameVersion, short reliability, List<String> topics,
+            Instant publishedAt) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded file is empty");
+        }
+        if (file.getSize() > MAX_UPLOAD_BYTES) {
+            throw new ResponseStatusException(HttpStatus.PAYLOAD_TOO_LARGE, "File exceeds 20MB");
+        }
+        String extension = extensionOf(file.getOriginalFilename());
+        if (!ALLOWED_UPLOAD_EXTENSIONS.contains(extension)) {
+            throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+                    "Only .pdf, .md and .txt files are accepted");
+        }
+        String content = extractText(file, extension);
+        if (content.length() < MIN_EXTRACTED_CHARS) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Extracted text is too short, the file may be a scanned image");
+        }
+        KnowledgeDocumentRequestDto request = KnowledgeDocumentRequestDto.builder()
+                .title(title)
+                .source(source)
+                .url(url)
+                .sourceType(sourceType)
+                .language(language)
+                .gameVersion(gameVersion)
+                .reliability(reliability)
+                .topics(topics)
+                .content(content)
+                .publishedAt(publishedAt)
+                .build();
+        return create(request);
+    }
+
+    private String extensionOf(String filename) {
+        if (filename == null) {
+            return "";
+        }
+        int dot = filename.lastIndexOf('.');
+        return dot < 0 ? "" : filename.substring(dot).toLowerCase();
+    }
+
+    private String extractText(MultipartFile file, String extension) {
+        try {
+            if (".pdf".equals(extension)) {
+                try (PDDocument document = Loader.loadPDF(file.getBytes())) {
+                    return new PDFTextStripper().getText(document).strip();
+                }
+            }
+            return new String(file.getBytes(), StandardCharsets.UTF_8).strip();
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Could not read uploaded file: " + ex.getMessage());
+        }
     }
 
     public KnowledgeDocumentDto index(UUID id) {

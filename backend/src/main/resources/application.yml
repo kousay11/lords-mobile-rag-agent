@@ -24,6 +24,11 @@ spring:
       repositories:
         enabled: false
 
+  servlet:
+    multipart:
+      max-file-size: ${KNOWLEDGE_MAX_FILE_SIZE:20MB}
+      max-request-size: ${KNOWLEDGE_MAX_REQUEST_SIZE:21MB}
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

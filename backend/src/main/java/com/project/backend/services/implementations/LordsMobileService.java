@@ -47,15 +47,20 @@ public class LordsMobileService {
     private final ChatMessageRepository messageRepository;
     private final AnswerFeedbackRepository feedbackRepository;
     private final PlayerProfileRepository profileRepository;
+    private final ProfileVersionService profileVersionService;
     private final AgentClient agentClient;
     private final ChatRateLimitService rateLimitService;
     private final ObjectMapper objectMapper;
 
     public LordsMobileChatResponseDto chat(User user, LordsMobileChatRequestDto request) {
-        rateLimitService.check(user.getId());
         PlayerProfile profile = getOrCreateProfile(user);
-        String language = firstNonBlank(request.getLanguage(), profile.getLanguage(), "fr");
-        String gameVersion = firstNonBlank(request.getGameVersion(), profile.getGameVersion());
+        if (!profile.isSetupCompleted()) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_REQUIRED,
+                    "Configurez votre profil dans Settings avant d’envoyer une question.");
+        }
+        rateLimitService.check(user.getId());
+        String language = profile.getLanguage();
+        String gameVersion = "specific".equals(profile.getVersionMode()) ? profile.getGameVersion() : null;
 
         ChatThread thread = request.getThreadId() == null
                 ? createThread(user, request.getMessage(), language, gameVersion)
@@ -169,7 +174,19 @@ public class LordsMobileService {
 
     @Transactional
     public PlayerProfileDto updateProfile(User user, PlayerProfileDto request) {
+        String version = blankToNull(request.getGameVersion());
+        if ("specific".equals(request.getVersionMode())) {
+            if (version == null || !profileVersionService.supportedVersions().contains(version)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Choisissez une version documentée ou l’option version inconnue.");
+            }
+        } else if (!"unknown".equals(request.getVersionMode()) || version != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choix de version incohérent.");
+        }
         PlayerProfile profile = getOrCreateProfile(user);
+        profile.setResponseLength(request.getResponseLength());
+        profile.setVersionMode(request.getVersionMode());
+        profile.setSetupCompleted(true);
         profile.setLanguage(firstNonBlank(request.getLanguage(), "fr"));
         profile.setGameVersion(blankToNull(request.getGameVersion()));
         profile.setPlayerLevel(blankToNull(request.getPlayerLevel()));
@@ -216,6 +233,14 @@ public class LordsMobileService {
         if (overrides != null) {
             context.putAll(overrides);
         }
+        // Saved preferences take precedence over per-message overrides and JSON extras.
+        context.remove("level");
+        context.remove("play_style");
+        context.remove("kingdom");
+        putIfPresent(context, "level", profile.getPlayerLevel());
+        putIfPresent(context, "play_style", profile.getPlayStyle());
+        putIfPresent(context, "kingdom", profile.getKingdom());
+        context.put("response_length", profile.getResponseLength());
         return context;
     }
 
@@ -254,6 +279,9 @@ public class LordsMobileService {
     private PlayerProfileDto toProfileDto(PlayerProfile profile) {
         return PlayerProfileDto.builder()
                 .language(profile.getLanguage())
+                .responseLength(profile.getResponseLength())
+                .versionMode(profile.getVersionMode())
+                .setupCompleted(profile.isSetupCompleted())
                 .gameVersion(profile.getGameVersion())
                 .playerLevel(profile.getPlayerLevel())
                 .playStyle(profile.getPlayStyle())

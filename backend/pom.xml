@@ -83,6 +83,12 @@
             <version>2.6.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.1</version>
+        </dependency>
+
         <!-- Optional: MapStruct (DTO mapping) -->
         <dependency>
             <groupId>org.mapstruct</groupId>

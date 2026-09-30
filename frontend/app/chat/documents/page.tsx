@@ -3,17 +3,21 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Database, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Database, FileUp, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { createKnowledgeDocument, deleteKnowledgeDocument, getApiErrorMessage, indexKnowledgeDocument, KnowledgeDocument, listKnowledgeDocuments } from '@/lib/api'
+import { deleteKnowledgeDocument, getApiErrorMessage, indexKnowledgeDocument, KnowledgeDocument, listKnowledgeDocuments, uploadKnowledgeDocument } from '@/lib/api'
 import { getRole } from '@/lib/auth'
 
-const emptyForm = { title: '', source: '', url: '', sourceType: 'official' as const, language: 'fr', gameVersion: '', reliability: 5, topics: '', content: '' }
+const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.markdown', '.txt'] as const
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+
+const emptyForm = { title: '', source: '', url: '', sourceType: 'official' as const, language: 'fr', gameVersion: '', reliability: 5, topics: '' }
 
 export default function KnowledgePage() {
   const router = useRouter()
   const [documents, setDocuments] = useState<KnowledgeDocument[]>([])
   const [form, setForm] = useState(emptyForm)
+  const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [workingId, setWorkingId] = useState<string>()
@@ -32,15 +36,29 @@ export default function KnowledgePage() {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (!file) { toast.error('Choisis un fichier .pdf ou .md'); return }
+    const extension = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
+    if (!(ACCEPTED_EXTENSIONS as readonly string[]).includes(extension)) {
+      toast.error('Seuls les fichiers .pdf et .md sont acceptés')
+      return
+    }
+    if (file.size > MAX_UPLOAD_BYTES) { toast.error('Fichier trop volumineux (max 20 Mo)'); return }
     setSaving(true)
     try {
-      await createKnowledgeDocument({
-        ...form,
-        url: form.url || undefined,
-        topics: form.topics.split(',').map((topic) => topic.trim()).filter(Boolean),
-      })
+      const data = new FormData()
+      data.append('file', file)
+      data.append('title', form.title)
+      data.append('source', form.source)
+      if (form.url) data.append('url', form.url)
+      data.append('sourceType', form.sourceType)
+      data.append('language', form.language)
+      data.append('gameVersion', form.gameVersion)
+      data.append('reliability', String(form.reliability))
+      data.append('topics', form.topics)
+      await uploadKnowledgeDocument(data)
       setForm(emptyForm)
-      toast.success('Document enregistré dans PostgreSQL')
+      setFile(null)
+      toast.success('Fichier enregistré dans PostgreSQL')
       await load()
     } catch (error) { toast.error(getApiErrorMessage(error)) }
     finally { setSaving(false) }
@@ -85,8 +103,13 @@ export default function KnowledgePage() {
           </div>
           <input required className={fieldClass} placeholder="Sujets séparés par des virgules" value={form.topics} onChange={(e) => setForm({ ...form, topics: e.target.value })} />
           <label className="block space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Contenu contrôlé du document</span>
-            <textarea required rows={10} className={`${fieldClass} min-h-60 resize-y`} placeholder="Collez ici le contenu vérifié qui sera découpé et indexé dans Qdrant." value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Fichier du document (.pdf, .md)</span>
+            <span className={`${fieldClass} flex cursor-pointer items-center gap-2`}>
+              <FileUp className="h-4 w-4 shrink-0 text-primary" />
+              <span className="truncate text-muted">{file ? `${file.name} (${(file.size / 1024).toFixed(0)} Ko)` : 'Choisir un fichier PDF ou Markdown…'}</span>
+              <input required type="file" accept=".pdf,.md,.markdown,.txt" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            </span>
+            <span className="block text-[11px] text-muted">Le texte sera extrait puis découpé et indexé dans Qdrant après validation.</span>
           </label>
           <button disabled={saving} className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 font-semibold text-white disabled:opacity-50">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</button>
         </form>

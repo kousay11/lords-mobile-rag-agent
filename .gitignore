@@ -2,15 +2,21 @@
 .env
 .env.*
 !.env.example
+*.env
+.env*.local
 *.pem
 *.key
 *.p12
 *.pfx
+**/*credentials*.json
+**/service-account*.json
+secrets/
 
 # Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.hypothesis/
 .mypy_cache/
 .ruff_cache/
 .coverage
@@ -23,8 +29,13 @@ env/
 
 # Java / Maven
 **/target/
+**/surefire-reports/
+**/failsafe-reports/
 *.class
 *.log
+*.dump
+*.sqlite
+*.db
 
 # Node.js / Next.js
 **/node_modules/
@@ -32,6 +43,12 @@ env/
 **/out/
 **/dist/
 *.tsbuildinfo
+.eslintcache
+coverage/
+test-results/
+playwright-report/
+playwright/.cache/
+*.png.snapshot
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -41,6 +58,7 @@ pnpm-debug.log*
 .cache/
 .codex/
 .agents/
+.opencode/
 .tmp/
 .test_deps/
 tmp/
@@ -49,6 +67,21 @@ qdrant_data/
 redis_data/
 uploads/
 
+# Generated corpus reviews and scraper artefacts (keep curated corpus, ignore timestamped work)
+docs/CORPUS_REVIEW_*.json
+data/lords-mobile/**/raw*.html
+data/lords-mobile/**/fetch-*.json
+data/lords-mobile/systems-2026/*
+!data/lords-mobile/systems-2026/wiki-familiar.md
+!data/lords-mobile/systems-2026/wiki-gathering.md
+!data/lords-mobile/systems-2026/wiki-guildfest.md
+!data/lords-mobile/systems-2026/wiki-research.md
+!data/lords-mobile/systems-2026/wiki-troops.md
+!data/lords-mobile/systems-2026/test-guildfest.pdf
+!data/lords-mobile/systems-2026/test-talents.pdf
+database
+official-2026
+wiki-construction
 # Editor and operating-system files
 .idea/
 .vscode/

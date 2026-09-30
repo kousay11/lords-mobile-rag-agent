@@ -1,0 +1,66 @@
+# Sources officielles collectées en 2026 — la collecte ne prouve pas leur actualité
+# Complète sources.yaml (wiki). Domaines stricte : igg.com, apple.com
+# Usage: python scripts/scrape_official_2026.py --dry-run / --execute
+
+allowed_domains:
+  - lordsmobile.igg.com
+  - igg.com
+  - apps.apple.com
+
+defaults:
+  language: en
+  game_version: "2026-review"
+  source_type: official
+  reliability: 4
+  status: needs_review
+
+sources:
+  - id: official-igg-heroes-2026
+    kind: igg-guide
+    url: https://lordsmobile.igg.com/project/game_tool/index.php?action=play_content&cate=1
+    title: "IGG Official Guide — Heroes (archive 2019, collected 2026)"
+    game_version: "official-guide-2019-04-15"
+    status: deprecated
+    source: "IGG — Heroes"
+    topics: [heroes, combat, progression]
+    entity_type: hero
+    entity_name: heroes
+    reliability: 5
+    output_path: official-2026/igg-heroes-2026.md
+
+  - id: official-igg-hunting-2026
+    kind: igg-guide
+    url: https://lordsmobile.igg.com/project/game_tool/index.php?action=play_content&cate=4
+    title: "IGG Official Guide — Hunting (archive 2019, collected 2026)"
+    game_version: "official-guide-2019-04-15"
+    status: deprecated
+    source: "IGG — Hunting"
+    topics: [monster-hunt, guild, research]
+    entity_type: game_mode
+    entity_name: monster-hunt
+    reliability: 5
+    output_path: official-2026/igg-hunting-2026.md
+
+  - id: official-igg-darknests-2026
+    kind: igg-guide
+    url: https://lordsmobile.igg.com/project/game_tool/index.php?action=play_content&cate=5
+    title: "IGG Official Guide — Darknests (archive 2019, collected 2026)"
+    game_version: "official-guide-2019-04-15"
+    status: deprecated
+    source: "IGG — Darknests"
+    topics: [darknests, guild, rallies]
+    entity_type: game_mode
+    entity_name: darknest
+    reliability: 5
+    output_path: official-2026/igg-darknests-2026.md
+
+  - id: official-appstore-changelog-2026
+    kind: appstore-changelog
+    url: https://apps.apple.com/my/app/lords-mobile-x-transformers/id1071976327?platform=ipad
+    title: "App Store Changelog — Lords Mobile x Transformers (2026 collabs)"
+    source: "Apple App Store — IGG"
+    topics: [update-notes, events, heroes]
+    entity_type: game_version
+    entity_name: changelog-2026
+    reliability: 4
+    output_path: official-2026/appstore-changelog-2026.md

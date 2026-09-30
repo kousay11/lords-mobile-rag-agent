@@ -34,6 +34,15 @@ public class PlayerProfile extends BaseEntity {
     @Column(name = "game_version", length = 50)
     private String gameVersion;
 
+    @Column(name = "response_length", length = 16)
+    private String responseLength;
+
+    @Column(name = "version_mode", length = 16)
+    private String versionMode;
+
+    @Column(name = "setup_completed", nullable = false, columnDefinition = "boolean default false")
+    private boolean setupCompleted;
+
     @Column(name = "player_level", length = 100)
     private String playerLevel;
 

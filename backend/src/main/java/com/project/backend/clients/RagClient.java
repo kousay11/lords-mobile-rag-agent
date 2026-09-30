@@ -1,6 +1,7 @@
 package com.project.backend.clients;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.backend.exceptions.DownstreamServiceException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -16,16 +17,19 @@ import java.util.Map;
 public class RagClient {
 
     private final RestClient client;
+    private final ObjectMapper objectMapper;
 
     public RagClient(
             RestClient.Builder builder,
             @Value("${app.ai.rag-base-url}") String baseUrl,
             @Value("${app.ai.connect-timeout-ms}") int connectTimeoutMs,
-            @Value("${app.ai.read-timeout-ms}") int readTimeoutMs) {
+            @Value("${app.ai.read-timeout-ms}") int readTimeoutMs,
+            ObjectMapper objectMapper) {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(connectTimeoutMs);
         factory.setReadTimeout(readTimeoutMs);
         this.client = builder.clone().baseUrl(baseUrl).requestFactory(factory).build();
+        this.objectMapper = objectMapper;
     }
 
     public JsonNode ingestText(String text, Map<String, Object> metadata) {
@@ -49,6 +53,9 @@ public class RagClient {
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException ex) {
+            if (ex.getStatusCode() == HttpStatus.NOT_FOUND) {
+                return;
+            }
             throw downstreamFailure(ex);
         } catch (ResourceAccessException ex) {
             throw timeout();
@@ -65,11 +72,21 @@ public class RagClient {
 
     private JsonNode post(String path, Object body) {
         try {
-            return client.post().uri(path).body(body).retrieve().body(JsonNode.class);
+            // Read as String first: immune to a wrong or missing response content type.
+            String raw = client.post().uri(path).body(body).retrieve().body(String.class);
+            if (raw == null || raw.isBlank()) {
+                throw new DownstreamServiceException(HttpStatus.BAD_GATEWAY, "RAG service returned an empty body");
+            }
+            return objectMapper.readTree(raw);
         } catch (RestClientResponseException ex) {
             throw downstreamFailure(ex);
         } catch (ResourceAccessException ex) {
             throw timeout();
+        } catch (DownstreamServiceException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new DownstreamServiceException(HttpStatus.BAD_GATEWAY,
+                    "RAG service returned an unreadable response");
         }
     }
 

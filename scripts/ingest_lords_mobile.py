@@ -105,7 +105,7 @@ def post_batch(rag_url: str, documents: list[dict]) -> dict:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urlopen(request, timeout=120) as response:
+    with urlopen(request, timeout=600) as response:
         return json.loads(response.read().decode("utf-8"))
 
 

@@ -58,13 +58,20 @@ class GraphNodeTests(unittest.TestCase):
         classified = graph.classify_node(state)
         extracted = graph.extract_game_context_node({**state, **classified})
         answer = graph.clarification_answer_node({**state, **classified, **extracted})
-        self.assertEqual(classified["language"], "fr")
+        self.assertEqual(classified["language"], "en")
         self.assertTrue(extracted["needs_clarification"])
         self.assertEqual(
             graph.route_after_context_extraction(extracted), "clarification_answer"
         )
         self.assertEqual(answer["generation_mode"], "deterministic_clarification")
-        self.assertIn("garantir", answer["messages"][0].content)
+        self.assertIn("guarantee", answer["messages"][0].content)
+
+    def test_saved_language_wins_over_question_language(self):
+        state = {
+            "messages": [HumanMessage(content="Conseille-moi sur les héros")],
+            "language": "en",
+        }
+        self.assertEqual(graph.classify_node(state)["language"], "en")
 
     def test_grounding_validator_rejects_unsupported_percentage_and_name(self):
         issues = graph.grounding_issues(
@@ -119,6 +126,53 @@ class GraphNodeTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_retrieval_does_not_filter_by_answer_language(self):
+        async def run():
+            response = unittest.mock.Mock()
+            response.json.return_value = {"chunks": [_chunk()]}
+            client = AsyncMock()
+            client.post.return_value = response
+            client.__aenter__.return_value = client
+            with patch("graph.httpx.AsyncClient", return_value=client):
+                await graph._retrieve_one("Colosseum", search_type="hybrid", top_k=8,
+                    game_version=None, statuses=["active"], min_reliability=4, min_score=0.25)
+            payload = client.post.call_args.kwargs["json"]
+            self.assertNotIn("language", payload)
+            self.assertNotIn("game_version", payload)
+            self.assertEqual(payload["statuses"], ["active"])
+        asyncio.run(run())
+
+    def test_length_preference_is_in_prompt_and_fallback(self):
+        from prompts import build_grounded_prompt
+        chunk = _chunk()
+        chunk["text"] = "Une preuve. " * 100
+        for length, expected in [("short", "80 à 150"), ("standard", "150 à 350"), ("detailed", "350 à 700")]:
+            prompt = build_grounded_prompt(language="ar", intent="fact_lookup", game_version=None,
+                player_context={"response_length": length}, context_blocks=[chunk])
+            self.assertIn(expected, prompt)
+            self.assertIn("LANGUE DE SORTIE OBLIGATOIRE: ar", prompt)
+            self.assertIn("LANGUE: ar", prompt)
+        short = graph._fallback_grounded_answer({"language": "fr", "player_context": {"response_length":"short"}, "retrieved_documents":[chunk]*3})
+        detailed = graph._fallback_grounded_answer({"language": "fr", "player_context": {"response_length":"detailed"}, "retrieved_documents":[chunk]*3})
+        self.assertLess(len(short), len(detailed))
+        self.assertNotIn("[2]", short)
+        self.assertIn("[3]", detailed)
+
+    def test_explicit_review_corpus_is_searchable_without_promoting_documents(self):
+        async def run():
+            mock = AsyncMock(return_value=[_chunk(status="needs_review")])
+            with patch("graph._retrieve_one", mock):
+                await graph.retrieve_node({"messages": [HumanMessage(content="Colosseum")],
+                    "game_version": "2026-review"}, {"configurable": {}})
+            self.assertEqual(mock.await_args.kwargs["game_version"], "2026-review")
+            self.assertEqual(mock.await_args.kwargs["statuses"], ["active", "needs_review"])
+            self.assertEqual(mock.await_args.kwargs["min_reliability"], 3)
+            with patch("graph.get_llm", side_effect=RuntimeError("offline")):
+                result = await graph.generate_node({"language":"fr", "messages": [],
+                    "retrieved_documents": [_chunk(status="needs_review")]}, {"configurable":{}})
+            self.assertIn("Sources avec réserves", result["messages"][0].content)
+        asyncio.run(run())
+
     def test_no_evidence_uses_fallback_without_llm(self):
         result = asyncio.run(
             graph.generate_node(
@@ -128,6 +182,23 @@ class GraphNodeTests(unittest.TestCase):
         )
         self.assertEqual(result["generation_mode"], "safe_fallback")
         self.assertIn("preuve", result["messages"][0].content)
+
+    def test_english_fallback_does_not_copy_foreign_source_text(self):
+        result = asyncio.run(
+            graph.generate_node(
+                {
+                    "language": "en",
+                    "player_context": {"response_length": "standard"},
+                    "retrieved_documents": [
+                        {"text": "Pour progresser, développez Économie.", "metadata": {}}
+                    ],
+                    "messages": [],
+                },
+                {"configurable": {}},
+            )
+        )
+        self.assertIn("The available documents", result["messages"][0].content)
+        self.assertNotIn("Pour progresser", result["messages"][0].content)
 
 
 if __name__ == "__main__":

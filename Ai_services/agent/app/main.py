@@ -397,12 +397,10 @@ async def _invoke_chat(request: ChatRequest) -> ChatResponse:
     }
     if request.user_id:
         state["user_id"] = request.user_id
-    if request.language:
-        state["language"] = request.language
-    if request.game_version:
-        state["game_version"] = request.game_version
-    if request.player_context:
-        state["player_context"] = request.player_context
+    # Always overwrite checkpointed preferences, including an explicitly unknown version.
+    state["language"] = request.language
+    state["game_version"] = request.game_version
+    state["player_context"] = request.player_context
 
     result = await app.state.graph.ainvoke(
         state,

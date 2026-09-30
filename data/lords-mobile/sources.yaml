@@ -85,7 +85,7 @@ sources:
     format: wiki-api
 
   - id: wiki-jewels-en-001
-    url: https://lordsmobile.fandom.com/wiki/Jewels
+    url: https://lordsmobile.fandom.com/wiki/Jewel
     title: "Jewels — Wiki"
     source: "Lords Mobile Wiki (Fandom)"
     source_type: verified_community
@@ -150,4 +150,140 @@ sources:
     wiki_api: https://lordsmobile.fandom.com
     wiki_title: Dragon_Arena
     output_path: community/wiki-dragon-arena.md
+    format: wiki-api
+
+  - id: wiki-familiar-en-002
+    url: https://lordsmobile.fandom.com/wiki/Familiar
+    title: "Familiars — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [familiars, progression]
+    entity_type: familiar
+    entity_name: familiar
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Familiar
+    output_path: systems-2026/wiki-familiar.md
+    format: wiki-api
+
+  - id: wiki-troop-en-002
+    url: https://lordsmobile.fandom.com/wiki/Troop
+    title: "Troops — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [troops, combat]
+    entity_type: troop
+    entity_name: troops
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Troop
+    output_path: systems-2026/wiki-troops.md
+    format: wiki-api
+
+  - id: wiki-construction-en-002
+    url: https://lordsmobile.fandom.com/wiki/Construction
+    title: "Buildings / Construction — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [buildings, progression]
+    entity_type: building
+    entity_name: construction
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Construction
+    output_path: systems-2026/wiki-construction.md
+    format: wiki-api
+
+  - id: wiki-research-en-002
+    url: https://lordsmobile.fandom.com/wiki/Research
+    title: "Research — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [research, progression]
+    entity_type: research
+    entity_name: research
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Research
+    output_path: systems-2026/wiki-research.md
+    format: wiki-api
+
+  - id: wiki-talent-en-002
+    url: https://lordsmobile.fandom.com/wiki/Talent
+    title: "Talents — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [talents, heroes]
+    entity_type: guide
+    entity_name: talents
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Talent
+    output_path: systems-2026/wiki-talents.md
+    format: wiki-api
+
+  - id: wiki-guildfest-en-002
+    url: https://lordsmobile.fandom.com/wiki/Guild_Fest
+    title: "Guild Fest — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [events, guild]
+    entity_type: event
+    entity_name: guild-fest
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Guild_Fest
+    output_path: systems-2026/wiki-guildfest.md
+    format: wiki-api
+
+  - id: wiki-gathering-en-002
+    url: https://lordsmobile.fandom.com/wiki/Gathering
+    title: "Gathering / Resources — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [resources, progression]
+    entity_type: resource
+    entity_name: gathering
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Gathering
+    output_path: systems-2026/wiki-gathering.md
+    format: wiki-api
+
+  - id: wiki-colosseum-en-002
+    url: https://lordsmobile.fandom.com/wiki/Colosseum
+    title: "Colosseum — Wiki"
+    source: "Lords Mobile Wiki (Fandom)"
+    source_type: verified_community
+    language: en
+    game_version: "2026-review"
+    topics: [combat, events]
+    entity_type: game_mode
+    entity_name: colosseum
+    reliability: 3
+    status: needs_review
+    wiki_api: https://lordsmobile.fandom.com
+    wiki_title: Colosseum
+    output_path: systems-2026/wiki-colosseum.md
     format: wiki-api

@@ -56,6 +56,8 @@ _TOPICS: dict[str, tuple[str, ...]] = {
 
 
 def detect_language(text: str, requested: str | None = None) -> str:
+    if requested in {"fr", "en", "ar"}:
+        return requested
     if re.search(r"[\u0600-\u06ff]", text):
         return "ar"
     if re.search(
