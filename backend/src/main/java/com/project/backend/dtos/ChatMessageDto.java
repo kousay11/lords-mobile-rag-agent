@@ -20,7 +20,6 @@ public class ChatMessageDto {
     private Double confidence;
     private JsonNode sources;
     private String intent;
-    private String gameVersion;
     private String generationMode;
     private Instant createdAt;
 }

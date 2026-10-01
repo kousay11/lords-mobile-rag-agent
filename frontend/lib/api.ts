@@ -64,7 +64,6 @@ export interface ChatMessage {
   confidence?: number | null
   sources?: SourceCitation[]
   intent?: string | null
-  gameVersion?: string | null
   generationMode?: string | null
   createdAt: string
 }
@@ -73,7 +72,6 @@ export interface ChatThread {
   id: string
   title: string
   language?: string | null
-  gameVersion?: string | null
   createdAt: string
   updatedAt: string
   messages: ChatMessage[]
@@ -83,7 +81,6 @@ export interface ChatRequest {
   message: string
   threadId?: string
   language?: string
-  gameVersion?: string
   playerContext?: Record<string, unknown>
   searchType?: 'hybrid' | 'semantic' | 'keyword'
   topK?: number
@@ -95,7 +92,6 @@ export interface ChatResponse {
   response: string
   intent: string
   language: string
-  gameVersion?: string | null
   sources: SourceCitation[]
   confidence: number
   needsClarification: boolean
@@ -124,27 +120,12 @@ export const saveFeedback = async (
 
 export interface PlayerProfile {
   responseLength?: 'short' | 'standard' | 'detailed' | null
-  versionMode?: 'unknown' | 'specific' | null
   setupCompleted?: boolean
   language?: string | null
-  gameVersion?: string | null
   playerLevel?: string | null
   playStyle?: string | null
-  kingdom?: string | null
   additionalContext?: Record<string, unknown> | null
 }
-export interface ProfileVersionOption {
-  value: string
-  label: string
-  kind: 'review' | 'release' | 'guide' | 'corpus'
-  documentCount: number
-  needsReviewCount: number
-  archivedCount: number
-}
-export const getProfileVersionOptions = async () =>
-  (await apiClient.get<ProfileVersionOption[]>('/api/lords-mobile/profile/version-options')).data
-export const getProfileVersions = async () =>
-  (await apiClient.get<string[]>('/api/lords-mobile/profile/versions')).data
 export const getPlayerProfile = async () =>
   (await apiClient.get<PlayerProfile>('/api/lords-mobile/profile')).data
 export const updatePlayerProfile = async (data: PlayerProfile) =>
@@ -159,6 +140,19 @@ export const deleteUser = async (id: string) => {
   await apiClient.delete(`/api/admin/users/${id}`)
 }
 
+export interface FeedbackDayPoint { date: string; helpful: number; notHelpful: number }
+export interface FeedbackIntentPoint { intent: string; helpful: number; notHelpful: number }
+export interface FeedbackStats {
+  helpful: number
+  notHelpful: number
+  total: number
+  helpfulRatio: number
+  series: FeedbackDayPoint[]
+  byIntent: FeedbackIntentPoint[]
+}
+export const getFeedbackStats = async (days = 30) =>
+  (await apiClient.get<FeedbackStats>('/api/admin/feedback/stats', { params: { days } })).data
+
 export interface KnowledgeDocument {
   id: string
   title: string
@@ -166,7 +160,6 @@ export interface KnowledgeDocument {
   url?: string | null
   sourceType: 'official' | 'verified_community' | 'community' | 'reference'
   language: string
-  gameVersion: string
   reliability: number
   status: string
   contentHash: string
@@ -185,7 +178,6 @@ export interface KnowledgeDocumentRequest {
   url?: string
   sourceType: KnowledgeDocument['sourceType']
   language: string
-  gameVersion: string
   reliability: number
   topics: string[]
   content: string

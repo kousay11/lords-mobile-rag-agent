@@ -75,7 +75,6 @@ public class AgentClient {
             @JsonProperty("thread_id") String threadId,
             @JsonProperty("user_id") String userId,
             String language,
-            @JsonProperty("game_version") String gameVersion,
             @JsonProperty("player_context") Map<String, Object> playerContext,
             @JsonProperty("search_type") String searchType,
             @JsonProperty("top_k") int topK) {
@@ -88,7 +87,6 @@ public class AgentClient {
             String provider,
             String intent,
             String language,
-            @JsonProperty("game_version") String gameVersion,
             JsonNode sources,
             double confidence,
             @JsonProperty("needs_clarification") boolean needsClarification,

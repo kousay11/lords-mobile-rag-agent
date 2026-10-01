@@ -18,7 +18,6 @@ def _chunk(document_id="doc-1", score=0.8, status="active"):
             "url": "https://example.test/guide",
             "source_type": "official",
             "language": "fr",
-            "game_version": "official-guide-2019-04-15",
             "status": status,
             "reliability": 4,
         },
@@ -92,7 +91,7 @@ class GraphNodeTests(unittest.TestCase):
         self.assertEqual(result["confidence"], 0.0)
         self.assertTrue(result["needs_clarification"])
 
-    def test_retrieval_defaults_to_active_sources(self):
+    def test_retrieval_searches_all_statuses_without_version_filter(self):
         async def run():
             mock = AsyncMock(return_value=[_chunk()])
             with patch("graph._retrieve_one", mock):
@@ -100,29 +99,50 @@ class GraphNodeTests(unittest.TestCase):
                     {
                         "messages": [HumanMessage(content="Quels joyaux choisir ?")],
                         "rewritten_queries": [],
+                        "player_context": {"response_length": "detailed"},
                     },
                     {"configurable": {}},
                 )
             self.assertEqual(len(result["retrieved_documents"]), 1)
-            self.assertEqual(mock.await_args.kwargs["statuses"], ["active"])
+            self.assertEqual(
+                mock.await_args.kwargs["statuses"], ["active", "deprecated", "needs_review"]
+            )
 
         asyncio.run(run())
 
-    def test_historical_version_allows_deprecated_sources(self):
+    def test_retrieval_truncates_to_response_length(self):
         async def run():
-            mock = AsyncMock(return_value=[_chunk(status="deprecated")])
+            mock = AsyncMock(
+                return_value=[_chunk(document_id=f"doc-{i}") for i in range(8)]
+            )
             with patch("graph._retrieve_one", mock):
-                await graph.retrieve_node(
+                short = await graph.retrieve_node(
                     {
-                        "messages": [HumanMessage(content="Que contient la version 2.18 ?")],
-                        "game_version": "2.18",
+                        "messages": [HumanMessage(content="Quels joyaux choisir ?")],
                         "rewritten_queries": [],
+                        "player_context": {"response_length": "short"},
                     },
                     {"configurable": {}},
                 )
-            self.assertEqual(
-                mock.await_args.kwargs["statuses"], ["active", "deprecated"]
-            )
+                standard = await graph.retrieve_node(
+                    {
+                        "messages": [HumanMessage(content="Quels joyaux choisir ?")],
+                        "rewritten_queries": [],
+                        "player_context": {"response_length": "standard"},
+                    },
+                    {"configurable": {}},
+                )
+                detailed = await graph.retrieve_node(
+                    {
+                        "messages": [HumanMessage(content="Quels joyaux choisir ?")],
+                        "rewritten_queries": [],
+                        "player_context": {"response_length": "detailed"},
+                    },
+                    {"configurable": {}},
+                )
+            self.assertEqual(len(short["retrieved_documents"]), 3)
+            self.assertEqual(len(standard["retrieved_documents"]), 5)
+            self.assertEqual(len(detailed["retrieved_documents"]), 8)
 
         asyncio.run(run())
 
@@ -135,38 +155,48 @@ class GraphNodeTests(unittest.TestCase):
             client.__aenter__.return_value = client
             with patch("graph.httpx.AsyncClient", return_value=client):
                 await graph._retrieve_one("Colosseum", search_type="hybrid", top_k=8,
-                    game_version=None, statuses=["active"], min_reliability=4, min_score=0.25)
+                    statuses=["active", "deprecated", "needs_review"], min_reliability=3, min_score=0.25)
             payload = client.post.call_args.kwargs["json"]
             self.assertNotIn("language", payload)
             self.assertNotIn("game_version", payload)
-            self.assertEqual(payload["statuses"], ["active"])
+            self.assertEqual(payload["statuses"], ["active", "deprecated", "needs_review"])
         asyncio.run(run())
 
-    def test_length_preference_is_in_prompt_and_fallback(self):
+    def test_length_and_profile_are_in_prompt_and_fallback(self):
         from prompts import build_grounded_prompt
         chunk = _chunk()
         chunk["text"] = "Une preuve. " * 100
         for length, expected in [("short", "80 à 150"), ("standard", "150 à 350"), ("detailed", "350 à 700")]:
-            prompt = build_grounded_prompt(language="ar", intent="fact_lookup", game_version=None,
+            prompt = build_grounded_prompt(language="ar", intent="fact_lookup",
                 player_context={"response_length": length}, context_blocks=[chunk])
             self.assertIn(expected, prompt)
             self.assertIn("LANGUE DE SORTIE OBLIGATOIRE: ar", prompt)
-            self.assertIn("LANGUE: ar", prompt)
+        prompt = build_grounded_prompt(language="fr", intent="fact_lookup",
+            player_context={"response_length": "standard", "level": "Château 25", "play_style": "free_to_play"},
+            context_blocks=[chunk])
+        self.assertIn("Château 25", prompt)
+        self.assertIn("free_to_play", prompt)
+        short_prompt = build_grounded_prompt(language="fr", intent="fact_lookup",
+            player_context={"response_length": "short"}, context_blocks=[chunk])
+        self.assertIn("1 à 3", short_prompt)
+        detailed_prompt = build_grounded_prompt(language="fr", intent="fact_lookup",
+            player_context={"response_length": "detailed"}, context_blocks=[chunk])
+        self.assertIn("3 à 8", detailed_prompt)
         short = graph._fallback_grounded_answer({"language": "fr", "player_context": {"response_length":"short"}, "retrieved_documents":[chunk]*3})
         detailed = graph._fallback_grounded_answer({"language": "fr", "player_context": {"response_length":"detailed"}, "retrieved_documents":[chunk]*3})
         self.assertLess(len(short), len(detailed))
         self.assertNotIn("[2]", short)
         self.assertIn("[3]", detailed)
 
-    def test_explicit_review_corpus_is_searchable_without_promoting_documents(self):
+    def test_needs_review_sources_warn_without_version_filter(self):
         async def run():
             mock = AsyncMock(return_value=[_chunk(status="needs_review")])
             with patch("graph._retrieve_one", mock):
                 await graph.retrieve_node({"messages": [HumanMessage(content="Colosseum")],
-                    "game_version": "2026-review"}, {"configurable": {}})
-            self.assertEqual(mock.await_args.kwargs["game_version"], "2026-review")
-            self.assertEqual(mock.await_args.kwargs["statuses"], ["active", "needs_review"])
-            self.assertEqual(mock.await_args.kwargs["min_reliability"], 3)
+                    "rewritten_queries": []}, {"configurable": {}})
+            self.assertEqual(
+                mock.await_args.kwargs["statuses"], ["active", "deprecated", "needs_review"]
+            )
             with patch("graph.get_llm", side_effect=RuntimeError("offline")):
                 result = await graph.generate_node({"language":"fr", "messages": [],
                     "retrieved_documents": [_chunk(status="needs_review")]}, {"configurable":{}})

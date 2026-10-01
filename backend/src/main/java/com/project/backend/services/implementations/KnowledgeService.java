@@ -60,7 +60,6 @@ public class KnowledgeService {
                 .url(blankToNull(request.getUrl()))
                 .sourceType(request.getSourceType())
                 .language(request.getLanguage())
-                .gameVersion(request.getGameVersion())
                 .reliability(request.getReliability())
                 .status(KnowledgeDocument.Status.PENDING)
                 .contentHash(hash)
@@ -75,7 +74,7 @@ public class KnowledgeService {
 
     @Transactional
     public KnowledgeDocumentDto createFromFile(MultipartFile file, String title, String source, String url,
-            String sourceType, String language, String gameVersion, short reliability, List<String> topics,
+            String sourceType, String language, short reliability, List<String> topics,
             Instant publishedAt) {
         if (file == null || file.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Uploaded file is empty");
@@ -99,7 +98,6 @@ public class KnowledgeService {
                 .url(url)
                 .sourceType(sourceType)
                 .language(language)
-                .gameVersion(gameVersion)
                 .reliability(reliability)
                 .topics(topics)
                 .content(content)
@@ -140,7 +138,6 @@ public class KnowledgeService {
         metadata.put("source", document.getSource());
         metadata.put("source_type", document.getSourceType());
         metadata.put("language", document.getLanguage());
-        metadata.put("game_version", document.getGameVersion());
         metadata.put("reliability", document.getReliability());
         metadata.put("status", "active");
         metadata.put("collected_at", document.getCollectedAt().toString());
@@ -179,7 +176,7 @@ public class KnowledgeService {
     public void delete(UUID id) {
         KnowledgeDocument document = find(id);
         if (document.getStatus() == KnowledgeDocument.Status.ACTIVE) {
-            ragClient.deleteDocument(document.getSource());
+            ragClient.deleteDocumentById(document.getId().toString());
         }
         repository.delete(document);
     }
@@ -197,7 +194,6 @@ public class KnowledgeService {
                 .url(document.getUrl())
                 .sourceType(document.getSourceType())
                 .language(document.getLanguage())
-                .gameVersion(document.getGameVersion())
                 .reliability(document.getReliability())
                 .status(document.getStatus().name().toLowerCase())
                 .contentHash(document.getContentHash())

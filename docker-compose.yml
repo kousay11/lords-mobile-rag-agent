@@ -47,11 +47,20 @@ services:
   rag:
     build:
       context: ./Ai_services/rag
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     environment:
       QDRANT_HOST: qdrant
       QDRANT_PORT: 6333
       QDRANT_COLLECTION: ${QDRANT_COLLECTION:-lords_mobile_knowledge}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+      EMBEDDING_INFERENCE_DEVICE: ${EMBEDDING_INFERENCE_DEVICE:-cuda}
+      EMBEDDING_INGEST_DEVICE: ${EMBEDDING_INGEST_DEVICE:-cuda}
       CHUNK_SIZE: ${CHUNK_SIZE:-1024}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP:-128}
       TOP_K: ${TOP_K:-8}

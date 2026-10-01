@@ -47,7 +47,6 @@ public class LordsMobileService {
     private final ChatMessageRepository messageRepository;
     private final AnswerFeedbackRepository feedbackRepository;
     private final PlayerProfileRepository profileRepository;
-    private final ProfileVersionService profileVersionService;
     private final AgentClient agentClient;
     private final ChatRateLimitService rateLimitService;
     private final ObjectMapper objectMapper;
@@ -60,17 +59,15 @@ public class LordsMobileService {
         }
         rateLimitService.check(user.getId());
         String language = profile.getLanguage();
-        String gameVersion = "specific".equals(profile.getVersionMode()) ? profile.getGameVersion() : null;
 
         ChatThread thread = request.getThreadId() == null
-                ? createThread(user, request.getMessage(), language, gameVersion)
+                ? createThread(user, request.getMessage(), language)
                 : ownedThread(request.getThreadId(), user);
 
         ChatMessage userMessage = ChatMessage.builder()
                 .thread(thread)
                 .role(ChatMessage.Role.USER)
                 .content(request.getMessage().trim())
-                .gameVersion(gameVersion)
                 .sources(JsonNodeFactory.instance.arrayNode())
                 .build();
         messageRepository.save(userMessage);
@@ -82,7 +79,6 @@ public class LordsMobileService {
                         thread.getId().toString(),
                         user.getId().toString(),
                         language,
-                        gameVersion,
                         context,
                         firstNonBlank(request.getSearchType(), "hybrid"),
                         request.getTopK() == null ? 8 : request.getTopK()));
@@ -102,13 +98,11 @@ public class LordsMobileService {
                 .confidence(BigDecimal.valueOf(agentResponse.confidence()).setScale(4, RoundingMode.HALF_UP))
                 .sources(sources)
                 .intent(agentResponse.intent())
-                .gameVersion(agentResponse.gameVersion())
                 .generationMode(agentResponse.generationMode())
                 .build();
         assistantMessage = messageRepository.save(assistantMessage);
 
         thread.setLanguage(agentResponse.language());
-        thread.setGameVersion(agentResponse.gameVersion());
         threadRepository.save(thread);
 
         return LordsMobileChatResponseDto.builder()
@@ -117,7 +111,6 @@ public class LordsMobileService {
                 .response(agentResponse.response())
                 .intent(agentResponse.intent())
                 .language(agentResponse.language())
-                .gameVersion(agentResponse.gameVersion())
                 .sources(sources)
                 .confidence(agentResponse.confidence())
                 .needsClarification(agentResponse.needsClarification())
@@ -174,24 +167,12 @@ public class LordsMobileService {
 
     @Transactional
     public PlayerProfileDto updateProfile(User user, PlayerProfileDto request) {
-        String version = blankToNull(request.getGameVersion());
-        if ("specific".equals(request.getVersionMode())) {
-            if (version == null || !profileVersionService.supportedVersions().contains(version)) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Choisissez une version documentée ou l’option version inconnue.");
-            }
-        } else if (!"unknown".equals(request.getVersionMode()) || version != null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choix de version incohérent.");
-        }
         PlayerProfile profile = getOrCreateProfile(user);
         profile.setResponseLength(request.getResponseLength());
-        profile.setVersionMode(request.getVersionMode());
         profile.setSetupCompleted(true);
         profile.setLanguage(firstNonBlank(request.getLanguage(), "fr"));
-        profile.setGameVersion(blankToNull(request.getGameVersion()));
         profile.setPlayerLevel(blankToNull(request.getPlayerLevel()));
         profile.setPlayStyle(blankToNull(request.getPlayStyle()));
-        profile.setKingdom(blankToNull(request.getKingdom()));
         profile.setAdditionalContext(request.getAdditionalContext());
         return toProfileDto(profileRepository.save(profile));
     }
@@ -205,14 +186,13 @@ public class LordsMobileService {
                         .build()));
     }
 
-    private ChatThread createThread(User user, String message, String language, String gameVersion) {
+    private ChatThread createThread(User user, String message, String language) {
         String normalized = message.trim().replaceAll("\\s+", " ");
         String title = normalized.length() <= 80 ? normalized : normalized.substring(0, 77) + "...";
         return threadRepository.save(ChatThread.builder()
                 .user(user)
                 .title(title)
                 .language(language)
-                .gameVersion(gameVersion)
                 .build());
     }
 
@@ -225,7 +205,6 @@ public class LordsMobileService {
         Map<String, Object> context = new LinkedHashMap<>();
         putIfPresent(context, "level", profile.getPlayerLevel());
         putIfPresent(context, "play_style", profile.getPlayStyle());
-        putIfPresent(context, "kingdom", profile.getKingdom());
         JsonNode additional = profile.getAdditionalContext();
         if (additional != null && additional.isObject()) {
             context.putAll(objectMapper.convertValue(additional, PLAYER_CONTEXT_TYPE));
@@ -236,10 +215,8 @@ public class LordsMobileService {
         // Saved preferences take precedence over per-message overrides and JSON extras.
         context.remove("level");
         context.remove("play_style");
-        context.remove("kingdom");
         putIfPresent(context, "level", profile.getPlayerLevel());
         putIfPresent(context, "play_style", profile.getPlayStyle());
-        putIfPresent(context, "kingdom", profile.getKingdom());
         context.put("response_length", profile.getResponseLength());
         return context;
     }
@@ -255,7 +232,6 @@ public class LordsMobileService {
                 .id(thread.getId())
                 .title(thread.getTitle())
                 .language(thread.getLanguage())
-                .gameVersion(thread.getGameVersion())
                 .createdAt(thread.getCreatedAt())
                 .updatedAt(thread.getUpdatedAt())
                 .messages(messages == null ? new ArrayList<>() : messages)
@@ -270,7 +246,6 @@ public class LordsMobileService {
                 .confidence(message.getConfidence() == null ? null : message.getConfidence().doubleValue())
                 .sources(message.getSources())
                 .intent(message.getIntent())
-                .gameVersion(message.getGameVersion())
                 .generationMode(message.getGenerationMode())
                 .createdAt(message.getCreatedAt())
                 .build();
@@ -280,12 +255,9 @@ public class LordsMobileService {
         return PlayerProfileDto.builder()
                 .language(profile.getLanguage())
                 .responseLength(profile.getResponseLength())
-                .versionMode(profile.getVersionMode())
                 .setupCompleted(profile.isSetupCompleted())
-                .gameVersion(profile.getGameVersion())
                 .playerLevel(profile.getPlayerLevel())
                 .playStyle(profile.getPlayStyle())
-                .kingdom(profile.getKingdom())
                 .additionalContext(profile.getAdditionalContext())
                 .build();
     }

@@ -4,7 +4,7 @@ Le service expose l'ingestion contrôlée et la recherche dense, sparse ou hybri
 
 ## Métadonnées d'ingestion
 
-Les champs suivants sont obligatoires : `document_id`, `title`, `source`, `source_type`, `language`, `game_version`, `reliability`, `status` et `topics`.
+Les champs suivants sont obligatoires : `document_id`, `title`, `source`, `source_type`, `language`, `reliability`, `status` et `topics`.
 
 ```json
 {
@@ -16,7 +16,6 @@ Les champs suivants sont obligatoires : `document_id`, `title`, `source`, `sourc
     "url": "https://example.com/official-guide",
     "source_type": "official",
     "language": "en",
-    "game_version": "5.0",
     "reliability": 5,
     "status": "active",
     "topics": ["buildings", "progression"]
@@ -36,7 +35,6 @@ Sans filtre de statut explicite, `/retrieve` ne consulte que les documents `acti
   "search_type": "hybrid",
   "top_k": 8,
   "language": "fr",
-  "game_version": "5.0",
   "topic": "buildings",
   "source_type": "official",
   "statuses": ["active"],

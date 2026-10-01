@@ -20,7 +20,6 @@ public class KnowledgeDocumentDto {
     private String url;
     private String sourceType;
     private String language;
-    private String gameVersion;
     private short reliability;
     private String status;
     private String contentHash;

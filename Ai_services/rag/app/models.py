@@ -26,7 +26,6 @@ class LordsMobileMetadata(BaseModel):
     language: Annotated[
         str, Field(min_length=2, max_length=16, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
     ]
-    game_version: Annotated[str, Field(min_length=1, max_length=50)]
     reliability: Annotated[int, Field(ge=1, le=5)]
     status: DocumentStatus
     url: HttpUrl | None = None
@@ -92,7 +91,6 @@ class RetrieveRequest(BaseModel):
         str | None,
         Field(min_length=2, max_length=16, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$"),
     ] = None
-    game_version: Annotated[str | None, Field(min_length=1, max_length=50)] = None
     topic: Annotated[str | None, Field(min_length=1, max_length=100)] = None
     entity_type: Annotated[str | None, Field(min_length=1, max_length=100)] = None
     source_type: SourceType | None = None

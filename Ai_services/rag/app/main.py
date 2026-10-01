@@ -317,7 +317,6 @@ async def retrieve(req: RetrieveRequest):
                 embedder=models["embedder"],
                 top_k=req.top_k,
                 language=req.language,
-                game_version=req.game_version,
                 topic=req.topic,
                 entity_type=req.entity_type,
                 source_type=req.source_type,
@@ -331,7 +330,6 @@ async def retrieve(req: RetrieveRequest):
                 vec,
                 top_k=req.top_k,
                 language=req.language,
-                game_version=req.game_version,
                 topic=req.topic,
                 entity_type=req.entity_type,
                 source_type=req.source_type,
@@ -346,7 +344,6 @@ async def retrieve(req: RetrieveRequest):
                 embedder=models["embedder"],
                 top_k=req.top_k,
                 language=req.language,
-                game_version=req.game_version,
                 topic=req.topic,
                 entity_type=req.entity_type,
                 source_type=req.source_type,
@@ -381,15 +378,15 @@ async def list_documents(limit: int = 500):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/documents/{source}")
-async def delete_document(source: str):
+@app.delete("/documents/{document_id}")
+async def delete_document(document_id: str):
     _require_ready()
     try:
-        deleted_chunks = models["vs"].delete_document(source)
+        deleted_chunks = models["vs"].delete_document(document_id)
         if deleted_chunks == 0:
             raise HTTPException(status_code=404, detail="Document not found")
         return {
-            "source": source,
+            "document_id": document_id,
             "deleted_chunks": deleted_chunks,
             "status": "deleted",
         }

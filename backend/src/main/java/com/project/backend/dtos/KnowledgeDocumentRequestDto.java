@@ -39,10 +39,6 @@ public class KnowledgeDocumentRequestDto {
     @Pattern(regexp = "^[a-z]{2,3}(?:-[A-Z]{2})?$")
     private String language;
 
-    @NotBlank
-    @Size(max = 50)
-    private String gameVersion;
-
     @Min(1)
     @Max(5)
     private short reliability;

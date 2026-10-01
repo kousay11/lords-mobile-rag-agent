@@ -31,14 +31,8 @@ public class PlayerProfile extends BaseEntity {
     @Column(nullable = false, length = 16)
     private String language;
 
-    @Column(name = "game_version", length = 50)
-    private String gameVersion;
-
     @Column(name = "response_length", length = 16)
     private String responseLength;
-
-    @Column(name = "version_mode", length = 16)
-    private String versionMode;
 
     @Column(name = "setup_completed", nullable = false, columnDefinition = "boolean default false")
     private boolean setupCompleted;
@@ -48,9 +42,6 @@ public class PlayerProfile extends BaseEntity {
 
     @Column(name = "play_style", length = 100)
     private String playStyle;
-
-    @Column(length = 100)
-    private String kingdom;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "additional_context", columnDefinition = "jsonb")

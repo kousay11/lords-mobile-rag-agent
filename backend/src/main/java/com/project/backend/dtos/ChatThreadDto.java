@@ -17,7 +17,6 @@ public class ChatThreadDto {
     private UUID id;
     private String title;
     private String language;
-    private String gameVersion;
     private Instant createdAt;
     private Instant updatedAt;
     private List<ChatMessageDto> messages;

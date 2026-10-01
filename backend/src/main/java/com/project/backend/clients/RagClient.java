@@ -46,10 +46,10 @@ public class RagClient {
         }
     }
 
-    public void deleteDocument(String source) {
+    public void deleteDocumentById(String documentId) {
         try {
             client.delete()
-                    .uri(uriBuilder -> uriBuilder.path("/documents/{source}").build(source))
+                    .uri(uriBuilder -> uriBuilder.path("/documents/{documentId}").build(documentId))
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException ex) {

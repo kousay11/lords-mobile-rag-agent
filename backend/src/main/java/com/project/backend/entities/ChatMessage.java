@@ -57,9 +57,6 @@ public class ChatMessage extends BaseEntity {
     @Column(length = 50)
     private String intent;
 
-    @Column(name = "game_version", length = 50)
-    private String gameVersion;
-
     @Column(name = "generation_mode", length = 30)
     private String generationMode;
 }

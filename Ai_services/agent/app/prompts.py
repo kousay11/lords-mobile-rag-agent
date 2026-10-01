@@ -34,7 +34,6 @@ def build_grounded_prompt(
     *,
     language: str,
     intent: str,
-    game_version: str | None,
     player_context: dict[str, Any],
     context_blocks: list[dict[str, Any]],
 ) -> str:
@@ -47,7 +46,6 @@ def build_grounded_prompt(
                 [
                     f"SOURCE [{index}]",
                     f"Titre: {metadata.get('title', 'Sans titre')}",
-                    f"Version: {metadata.get('game_version', 'inconnue')}",
                     f"Statut: {metadata.get('status', 'inconnu')}",
                     f"Fiabilité: {metadata.get('reliability', 'inconnue')}/5",
                     f"URL: {metadata.get('url') or 'non fournie'}",
@@ -57,19 +55,32 @@ def build_grounded_prompt(
         )
 
     player = player_context or {}
+    length_key = player.get("response_length", "standard")
     length_instruction = {
         "short": "Réponse courte : vise 80 à 150 mots, une réponse directe et les citations utiles.",
         "standard": "Réponse standard : vise 150 à 350 mots, avec une explication et les citations utiles.",
         "detailed": "Réponse détaillée : vise 350 à 700 mots si les preuves le permettent, avec étapes et limites.",
-    }.get(player.get("response_length", "standard"), "Réponse standard, claire et concise.")
+    }.get(length_key, "Réponse standard, claire et concise.")
+    citation_quota = {"short": "1 à 3", "standard": "2 à 5", "detailed": "3 à 8"}.get(
+        length_key, "2 à 5"
+    )
+    level = str(player.get("level") or "").strip()
+    play_style = str(player.get("play_style") or "").strip()
+    extra_keys = {k: v for k, v in player.items() if k not in {"response_length", "level", "play_style"} and v not in (None, "")}
+    profile_lines = [
+        f"Progression du joueur: {level or 'non précisée'} — adapte les exemples et prérequis à ce niveau.",
+        f"Style de jeu: {play_style or 'non précisé'} — free_to_play/low_spender = pas de solution P2P imposée, competitive = optimisation sans inventer de valeurs.",
+    ]
+    if extra_keys:
+        profile_lines.append(f"Contexte complémentaire (troupes, objectifs): {extra_keys} — priorise ces sujets s'ils sont sourcés.")
     return "\n\n".join(
         [
             SYSTEM_PROMPT,
             f"LANGUE DE SORTIE OBLIGATOIRE: {language}. N'utilise aucune autre langue, sauf les noms propres du jeu et les citations textuelles nécessaires.",
-            f"FORMAT DE RÉPONSE: {length_instruction} Ne complète jamais avec des faits non sourcés pour atteindre cette longueur.",
+            f"FORMAT DE RÉPONSE: {length_instruction} Cite entre {citation_quota} sources avec [n] selon la longueur demandée. Ne complète jamais avec des faits non sourcés pour atteindre cette longueur.",
             f"INTENTION: {intent}",
-            f"VERSION DEMANDÉE: {game_version or 'non précisée'}",
-            f"CONTEXTE JOUEUR: {player}",
+            "PROFIL JOUEUR:\n" + "\n".join(profile_lines),
+            f"CONTEXTE JOUEUR BRUT: {player}",
             "CONTEXTE DOCUMENTAIRE:\n" + (
                 "\n\n".join(context_lines) if context_lines else "Aucune preuve retrouvée."
             ),

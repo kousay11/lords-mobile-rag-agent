@@ -19,7 +19,6 @@ public class LordsMobileChatResponseDto {
     private String response;
     private String intent;
     private String language;
-    private String gameVersion;
     private JsonNode sources;
     private double confidence;
     private boolean needsClarification;

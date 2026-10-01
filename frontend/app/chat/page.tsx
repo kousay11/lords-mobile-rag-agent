@@ -10,7 +10,7 @@ import { ChatComposer } from '@/components/advisor/chat-composer'
 import { KnowledgeNavigation } from '@/components/advisor/knowledge-navigation'
 import { SourcePanel } from '@/components/advisor/source-panel'
 import { ThinkingState } from '@/components/advisor/thinking-state'
-import { ChatMessage, ChatThread, SourceCitation, deleteThread, getApiErrorMessage, getThread, listThreads, sendChatMessage } from '@/lib/api'
+import { ChatMessage, ChatThread, SourceCitation, deleteThread, getApiErrorMessage, getPlayerProfile, getThread, listThreads, sendChatMessage } from '@/lib/api'
 
 const suggestions = ['Meilleurs héros pour le Colisée', 'Quelles recherches prioriser ?', 'Comment fonctionnent les boucliers ?', 'Comment augmenter ma Puissance ?', 'Comment protéger mes troupes ?', 'Stratégie de chasse aux monstres']
 
@@ -23,6 +23,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false)
   const [loadingThreads, setLoadingThreads] = useState(true)
   const [drawer, setDrawer] = useState<'knowledge' | 'sources'>()
+  const [profileSummary, setProfileSummary] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const lastMessageRef = useRef<HTMLDivElement>(null)
   const followMessagesRef = useRef(true)
@@ -30,6 +31,17 @@ export default function ChatPage() {
 
   const refreshThreads = useCallback(async () => { try { setThreads(await listThreads()) } catch (error) { toast.error(getApiErrorMessage(error)) } finally { setLoadingThreads(false) } }, [])
   useEffect(() => { void refreshThreads(); const pending = localStorage.getItem('lords_mobile_pending_prompt'); if (pending) { setInput(pending); localStorage.removeItem('lords_mobile_pending_prompt') } }, [refreshThreads])
+  useEffect(() => {
+    getPlayerProfile().then((profile) => {
+      const parts = [
+        (profile.language || 'fr').toUpperCase(),
+        profile.responseLength === 'short' ? 'Courte' : profile.responseLength === 'detailed' ? 'Détaillée' : 'Standard',
+        profile.playerLevel || null,
+        profile.playStyle === 'free_to_play' ? 'F2P' : profile.playStyle === 'low_spender' ? 'Petit budget' : profile.playStyle === 'competitive' ? 'Compétitif' : null,
+      ].filter(Boolean)
+      setProfileSummary(parts.join(' · '))
+    }).catch(() => {})
+  }, [])
   useEffect(() => {
     const viewport = scrollRef.current
     const lastMessage = lastMessageRef.current
@@ -59,7 +71,7 @@ export default function ChatPage() {
     try {
       const result = await sendChatMessage({ message: text, threadId: activeId, searchType: 'hybrid', topK: 8 })
       setActiveId(result.threadId)
-      setMessages((current) => [...current, { id: result.messageId, role: 'assistant', content: result.response, confidence: result.confidence, sources: result.sources || [], intent: result.intent, gameVersion: result.gameVersion, generationMode: result.generationMode, createdAt: new Date().toISOString() }])
+      setMessages((current) => [...current, { id: result.messageId, role: 'assistant', content: result.response, confidence: result.confidence, sources: result.sources || [], intent: result.intent, generationMode: result.generationMode, createdAt: new Date().toISOString() }])
       await refreshThreads()
     } catch (error) {
       setMessages((current) => current.filter((message) => message.id !== optimistic.id))
@@ -77,5 +89,5 @@ export default function ChatPage() {
   return <div className="mx-auto grid h-full min-h-0 max-w-[1600px] grid-rows-[minmax(0,1fr)] overflow-hidden xl:grid-cols-[250px_minmax(0,1fr)_310px]"><div className="hidden min-h-0 overflow-hidden border-r border-primary/20 xl:block">{navigation}</div><main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-background/45"><div className="flex h-12 shrink-0 items-center justify-between border-b border-border/35 bg-surface/35 px-4 xl:hidden"><button onClick={() => setDrawer('knowledge')} className="flex items-center gap-2 text-xs text-muted"><Menu className="h-4 w-4 text-primary" /> Archives</button><button onClick={() => setDrawer('sources')} className="flex items-center gap-2 text-xs text-muted">Sources ({sources.length}) <ScrollText className="h-4 w-4 text-accent" /></button></div><div ref={scrollRef} onScroll={(event) => {
     const viewport = event.currentTarget
     followMessagesRef.current = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < 80
-  }} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-7 sm:px-7"><div className="mx-auto max-w-3xl">{messages.length === 0 ? <section className="flex min-h-[65vh] flex-col items-center justify-center text-center"><span className="relative mb-7 flex h-20 w-20 items-center justify-center border border-primary/60 bg-primary/[.07] text-primary shadow-gold"><BookOpen className="h-9 w-9" /><Sparkles className="absolute -right-2 -top-2 h-5 w-5 text-accent" /></span><p className="font-mono text-[9px] uppercase tracking-[.3em] text-accent">Chambre du Conseil</p><h1 className="kingdom-title mt-3 text-3xl font-bold sm:text-4xl">Quel conseil recherchez-vous,<br /><span className="text-gradient">Commandant ?</span></h1><p className="mt-5 max-w-xl text-sm leading-6 text-muted">Le Sage analyse les archives du royaume et distingue les faits documentés des recommandations stratégiques.</p><div className="mt-9 grid w-full gap-2 sm:grid-cols-2">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setInput(suggestion)} className="border border-border/50 bg-surface/55 p-3 text-left text-xs text-muted transition hover:border-primary hover:bg-primary/[.06] hover:text-text-main">{suggestion}</button>)}</div></section> : <div className="space-y-8">{messages.map((message, index) => <div key={message.id} ref={index === messages.length - 1 ? lastMessageRef : undefined}><AdvisorMessage message={message} /></div>)}{loading && <ThinkingState />}</div>}</div></div><ChatComposer value={input} onChange={setInput} onSubmit={submit} onReset={newChat} loading={loading} /></main><div className="hidden min-h-0 overflow-hidden border-l border-primary/20 xl:block"><SourcePanel sources={sources} /></div>{drawer && <div className="fixed inset-0 z-50 bg-black/75 xl:hidden" onClick={() => setDrawer(undefined)}><div onClick={(event) => event.stopPropagation()} className={`absolute inset-y-0 w-[min(88vw,340px)] border-primary/30 bg-background shadow-2xl ${drawer === 'knowledge' ? 'left-0 border-r' : 'right-0 border-l'}`}><button onClick={() => setDrawer(undefined)} className="absolute right-3 top-3 z-10 border border-border bg-background p-2 text-muted" aria-label="Fermer"><X className="h-4 w-4" /></button>{drawer === 'knowledge' ? navigation : <SourcePanel sources={sources} />}</div></div>}</div>
+  }} className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-7 sm:px-7"><div className="mx-auto max-w-3xl">{messages.length === 0 ? <section className="flex min-h-[65vh] flex-col items-center justify-center text-center"><span className="relative mb-7 flex h-20 w-20 items-center justify-center border border-primary/60 bg-primary/[.07] text-primary shadow-gold"><BookOpen className="h-9 w-9" /><Sparkles className="absolute -right-2 -top-2 h-5 w-5 text-accent" /></span><p className="font-mono text-[9px] uppercase tracking-[.3em] text-accent">Chambre du Conseil</p><h1 className="kingdom-title mt-3 text-3xl font-bold sm:text-4xl">Quel conseil recherchez-vous,<br /><span className="text-gradient">Commandant ?</span></h1><p className="mt-5 max-w-xl text-sm leading-6 text-muted">Le Sage analyse les archives du royaume et distingue les faits documentés des recommandations stratégiques.</p><div className="mt-9 grid w-full gap-2 sm:grid-cols-2">{suggestions.map((suggestion) => <button key={suggestion} onClick={() => setInput(suggestion)} className="border border-border/50 bg-surface/55 p-3 text-left text-xs text-muted transition hover:border-primary hover:bg-primary/[.06] hover:text-text-main">{suggestion}</button>)}</div></section> : <div className="space-y-8">{messages.map((message, index) => <div key={message.id} ref={index === messages.length - 1 ? lastMessageRef : undefined}><AdvisorMessage message={message} /></div>)}{loading && <ThinkingState />}</div>}</div></div><ChatComposer value={input} onChange={setInput} onSubmit={submit} onReset={newChat} loading={loading} /></main><div className="hidden min-h-0 overflow-hidden border-l border-primary/20 xl:block"><SourcePanel sources={sources} profileSummary={profileSummary} /></div>{drawer && <div className="fixed inset-0 z-50 bg-black/75 xl:hidden" onClick={() => setDrawer(undefined)}><div onClick={(event) => event.stopPropagation()} className={`absolute inset-y-0 w-[min(88vw,340px)] border-primary/30 bg-background shadow-2xl ${drawer === 'knowledge' ? 'left-0 border-r' : 'right-0 border-l'}`}><button onClick={() => setDrawer(undefined)} className="absolute right-3 top-3 z-10 border border-border bg-background p-2 text-muted" aria-label="Fermer"><X className="h-4 w-4" /></button>{drawer === 'knowledge' ? navigation : <SourcePanel sources={sources} profileSummary={profileSummary} />}</div></div>}</div>
 }

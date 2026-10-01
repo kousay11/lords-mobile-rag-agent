@@ -16,7 +16,6 @@ from langgraph.graph.message import add_messages
 
 from intent import (
     classify_intent,
-    extract_game_version,
     extract_topics,
     needs_clarification,
     rewrite_queries,
@@ -26,6 +25,21 @@ from prompts import build_grounded_prompt
 
 RAG_URL = os.getenv("RAG_SERVICE_URL", "http://rag:8001").rstrip("/")
 MAX_CONTEXT_CHUNKS = 8
+# Longueur settings -> nombre de sources du panneau + citations + plafond tokens.
+# short = l'essentiel, standard = explications, detailed = étapes et limites.
+LENGTH_TO_MAX_CHUNKS = {"short": 3, "standard": 5, "detailed": 8}
+LENGTH_TO_MAX_TOKENS = {"short": 400, "standard": 800, "detailed": 1500}
+LENGTH_TO_CITATIONS = {"short": "1 à 3", "standard": "2 à 5", "detailed": "3 à 8"}
+
+
+def max_chunks_for(player_context: dict[str, Any] | None) -> int:
+    length = (player_context or {}).get("response_length", "standard")
+    return LENGTH_TO_MAX_CHUNKS.get(length, LENGTH_TO_MAX_CHUNKS["standard"])
+
+
+def max_tokens_for(player_context: dict[str, Any] | None) -> int:
+    length = (player_context or {}).get("response_length", "standard")
+    return LENGTH_TO_MAX_TOKENS.get(length, LENGTH_TO_MAX_TOKENS["standard"])
 _CITATION_PATTERN = re.compile(r"\[(\d+)]")
 _PERCENT_PATTERN = re.compile(
     r"\b\d+(?:[.,]\d+)?\s*(?:[-–—]\s*\d+(?:[.,]\d+)?)?\s*%"
@@ -37,7 +51,6 @@ class LordsMobileState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     user_id: NotRequired[str]
     language: NotRequired[str]
-    game_version: NotRequired[str | None]
     player_context: NotRequired[dict[str, Any]]
     intent: NotRequired[str]
     topics: NotRequired[list[str]]
@@ -69,8 +82,9 @@ def get_llm(
     model_name: str | None,
     base_url: str | None,
     api_key: str | None,
+    max_tokens: int | None = None,
 ) -> ChatOpenAI:
-    return ChatOpenAI(
+    kwargs: dict[str, Any] = dict(
         model=model_name or "qwen2.5:7b-instruct",
         api_key=api_key or "local-provider",
         base_url=base_url,
@@ -78,6 +92,9 @@ def get_llm(
         timeout=60,
         max_retries=1,
     )
+    if max_tokens:
+        kwargs["max_tokens"] = max_tokens
+    return ChatOpenAI(**kwargs)
 
 
 def classify_node(state: LordsMobileState) -> dict[str, Any]:
@@ -101,7 +118,6 @@ def extract_game_context_node(state: LordsMobileState) -> dict[str, Any]:
     intent = state.get("intent", "fact_lookup")
     return {
         "topics": extract_topics(query),
-        "game_version": extract_game_version(query, state.get("game_version")),
         "player_context": player_context,
         "needs_clarification": needs_clarification(query, intent, player_context),
     }
@@ -147,7 +163,11 @@ def clarification_answer_node(state: LordsMobileState) -> dict[str, Any]:
 
 def rewrite_node(state: LordsMobileState) -> dict[str, Any]:
     query = _latest_question(state)
-    return {"rewritten_queries": rewrite_queries(query, state.get("topics", []))}
+    return {
+        "rewritten_queries": rewrite_queries(
+            query, state.get("topics", []), state.get("player_context")
+        )
+    }
 
 
 async def _retrieve_one(
@@ -155,7 +175,6 @@ async def _retrieve_one(
     *,
     search_type: str,
     top_k: int,
-    game_version: str | None,
     statuses: list[str],
     min_reliability: int,
     min_score: float,
@@ -169,8 +188,6 @@ async def _retrieve_one(
         "min_reliability": min_reliability,
         "min_relevance_score": min_score,
     }
-    if game_version:
-        payload["game_version"] = game_version
 
     async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(f"{RAG_URL}/retrieve", json=payload)
@@ -188,14 +205,9 @@ async def retrieve_node(
     search_type = str(cfg.get("search_type", "hybrid"))
     top_k = max(1, min(int(cfg.get("top_k", 8)), 20))
     min_score = max(0.0, min(float(cfg.get("min_relevance_score", 0.25)), 1.0))
-    min_reliability = max(1, min(int(cfg.get("min_reliability", 4)), 5))
-    game_version = state.get("game_version")
-    statuses = ["active", "deprecated"] if game_version else ["active"]
-    # A deliberately selected annual review corpus can be consulted with reservations.
-    # Unspecified versions retain the validated-only policy; no document is promoted.
-    if game_version and re.fullmatch(r"\d{4}-review", game_version):
-        statuses = ["active", "needs_review"]
-        min_reliability = max(3, min_reliability - 1)
+    min_reliability = max(1, min(int(cfg.get("min_reliability", 3)), 5))
+    # Concepts stables entre versions : interroge tout le corpus sans filtre de version.
+    statuses = ["active", "deprecated", "needs_review"]
 
     batches = await asyncio.gather(
         *[
@@ -203,7 +215,6 @@ async def retrieve_node(
                 item,
                 search_type=search_type,
                 top_k=top_k,
-                game_version=game_version,
                 statuses=statuses,
                 min_reliability=min_reliability,
                 min_score=min_score,
@@ -222,7 +233,7 @@ async def retrieve_node(
 
     ranked = sorted(
         deduplicated.values(), key=lambda item: float(item.get("score", 0)), reverse=True
-    )[:MAX_CONTEXT_CHUNKS]
+    )[: min(MAX_CONTEXT_CHUNKS, max_chunks_for(state.get("player_context")))]
     return {
         "retrieved_documents": ranked,
         "search_type": search_type,
@@ -239,7 +250,6 @@ def _source_from_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
         "url": metadata.get("url"),
         "source_type": metadata.get("source_type"),
         "language": metadata.get("language"),
-        "game_version": metadata.get("game_version"),
         "status": metadata.get("status"),
         "reliability": metadata.get("reliability"),
         "score": round(float(chunk.get("score", 0)), 4),
@@ -389,7 +399,6 @@ async def generate_node(
     system_prompt = build_grounded_prompt(
         language=state.get("language", "fr"),
         intent=state.get("intent", "fact_lookup"),
-        game_version=state.get("game_version"),
         player_context=state.get("player_context", {}),
         context_blocks=chunks,
     )
@@ -398,6 +407,7 @@ async def generate_node(
             model_name=cfg.get("model") or state.get("model"),
             base_url=cfg.get("base_url") or state.get("base_url"),
             api_key=cfg.get("api_key"),
+            max_tokens=max_tokens_for(state.get("player_context")),
         )
         history = list(state.get("messages", []))[-12:]
         response = await llm.ainvoke([SystemMessage(content=system_prompt), *history])
@@ -432,7 +442,6 @@ async def generate_node(
                 "sources": state.get("sources", []),
                 "confidence": state.get("confidence", 0.0),
                 "needs_clarification": state.get("needs_clarification", False),
-                "game_version": state.get("game_version"),
             }
         },
     )

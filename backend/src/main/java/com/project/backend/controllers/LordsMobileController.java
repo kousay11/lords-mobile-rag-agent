@@ -66,18 +66,6 @@ public class LordsMobileController {
         return ResponseEntity.noContent().build();
     }
 
-    private final com.project.backend.services.implementations.ProfileVersionService profileVersionService;
-
-    @GetMapping("/profile/version-options")
-    public ResponseEntity<List<com.project.backend.services.implementations.ProfileVersionService.VersionOption>> profileVersionOptions() {
-        return ResponseEntity.ok(profileVersionService.versionOptions());
-    }
-
-    @GetMapping("/profile/versions")
-    public ResponseEntity<java.util.List<String>> profileVersions() {
-        return ResponseEntity.ok(profileVersionService.supportedVersions());
-    }
-
     @GetMapping("/profile")
     public ResponseEntity<PlayerProfileDto> getProfile(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(service.getProfile(user));

@@ -33,7 +33,4 @@ public class ChatThread extends BaseEntity {
 
     @Column(length = 16)
     private String language;
-
-    @Column(name = "game_version", length = 50)
-    private String gameVersion;
 }

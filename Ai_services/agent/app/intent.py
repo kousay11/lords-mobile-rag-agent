@@ -109,13 +109,6 @@ def extract_topics(text: str) -> list[str]:
     ]
 
 
-def extract_game_version(text: str, requested: str | None = None) -> str | None:
-    if requested:
-        return requested
-    match = re.search(r"\b(?:version|v)\s*(\d+(?:\.\d+){1,2})\b", text, re.IGNORECASE)
-    return match.group(1) if match else None
-
-
 def needs_clarification(text: str, intent: Intent, player_context: dict | None = None) -> bool:
     if intent == "unclear":
         return True
@@ -132,7 +125,9 @@ def needs_clarification(text: str, intent: Intent, player_context: dict | None =
     return False
 
 
-def rewrite_queries(text: str, topics: list[str]) -> list[str]:
+def rewrite_queries(
+    text: str, topics: list[str], player_context: dict | None = None
+) -> list[str]:
     """Add official names and bilingual synonyms without changing intent."""
     expansions = {
         "heroes": "héros Heroes bonus armée infanterie cavalerie distance",
@@ -146,4 +141,23 @@ def rewrite_queries(text: str, topics: list[str]) -> list[str]:
         "research": "recherche Académie prérequis progression",
     }
     alternatives = [f"{text} {expansions[topic]}" for topic in topics if topic in expansions]
-    return list(dict.fromkeys(alternatives))[:2]
+    # Biaise la récupération vers le profil : niveau, style et contexte
+    # complémentaire deviennent des termes de requête (jamais des instructions).
+    profile_terms: list[str] = []
+    player = player_context or {}
+    level = str(player.get("level") or "").strip()
+    if level:
+        profile_terms.append(level)
+    play_style = str(player.get("play_style") or "").strip()
+    if play_style:
+        profile_terms.append(play_style.replace("_", " "))
+    for key, value in player.items():
+        if key in {"response_length", "level", "play_style"}:
+            continue
+        if isinstance(value, str) and value.strip():
+            profile_terms.append(value.strip()[:80])
+        elif isinstance(value, (int, float)):
+            profile_terms.append(str(value))
+    if profile_terms:
+        alternatives.append(f"{text} {' '.join(profile_terms)}")
+    return list(dict.fromkeys(alternatives))[:3]

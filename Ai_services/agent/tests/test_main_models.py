@@ -4,11 +4,10 @@ from main import ChatRequest, ChatResponse, app
 
 
 class ApiContractTests(unittest.TestCase):
-    def test_chat_request_accepts_game_context(self):
+    def test_chat_request_accepts_player_context(self):
         request = ChatRequest(
             message="Quels joyaux choisir ?",
             language="fr",
-            game_version="2.18",
             player_context={"play_style": "free_to_play"},
         )
         self.assertEqual(request.language, "fr")

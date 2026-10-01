@@ -28,9 +28,6 @@ public class LordsMobileChatRequestDto {
     @Pattern(regexp = "^[a-z]{2,3}(?:-[A-Z]{2})?$")
     private String language;
 
-    @Size(max = 50)
-    private String gameVersion;
-
     private Map<String, Object> playerContext;
 
     @Pattern(regexp = "^(hybrid|semantic|keyword)$")

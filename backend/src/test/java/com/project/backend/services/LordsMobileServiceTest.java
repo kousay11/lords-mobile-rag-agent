@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.project.backend.clients.AgentClient;
 import com.project.backend.dtos.LordsMobileChatRequestDto;
 import com.project.backend.dtos.PlayerProfileDto;
-import com.project.backend.services.implementations.ProfileVersionService;
 import org.springframework.web.server.ResponseStatusException;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -49,7 +48,6 @@ class LordsMobileServiceTest {
     @Mock private AnswerFeedbackRepository feedbackRepository;
     @Mock private PlayerProfileRepository profileRepository;
     @Mock private AgentClient agentClient;
-    @Mock private ProfileVersionService profileVersionService;
     @Mock private ChatRateLimitService rateLimitService;
 
     private LordsMobileService service;
@@ -62,7 +60,6 @@ class LordsMobileServiceTest {
                 messageRepository,
                 feedbackRepository,
                 profileRepository,
-                profileVersionService,
                 agentClient,
                 rateLimitService,
                 new ObjectMapper());
@@ -79,7 +76,6 @@ class LordsMobileServiceTest {
             .language("en")
                 .setupCompleted(true)
                 .responseLength("short")
-                .versionMode("unknown")
                 .playStyle("free_to_play")
                 .additionalContext(JsonNodeFactory.instance.objectNode())
                 .build();
@@ -101,7 +97,6 @@ class LordsMobileServiceTest {
                 "provider",
                 "fact_lookup",
                 "en",
-                "official-guide-2019-04-15",
                 JsonNodeFactory.instance.arrayNode().addObject().put("title", "Guide officiel"),
                 0.87,
                 false,
@@ -113,7 +108,6 @@ class LordsMobileServiceTest {
         LordsMobileChatResponseDto response = service.chat(user, LordsMobileChatRequestDto.builder()
                 .message("Comment fonctionne la chasse ?")
                 .language("ar")
-                .gameVersion("2.18")
                 .playerContext(Map.of("response_length", "detailed", "play_style", "competitive"))
                 .build());
 
@@ -129,7 +123,6 @@ class LordsMobileServiceTest {
         assertEquals("free_to_play", requestCaptor.getValue().playerContext().get("play_style"));
         assertEquals("short", requestCaptor.getValue().playerContext().get("response_length"));
         assertEquals("en", requestCaptor.getValue().language());
-        assertNull(requestCaptor.getValue().gameVersion());
     }
 
     @Test
@@ -159,29 +152,11 @@ class LordsMobileServiceTest {
         when(profileRepository.findByUser(other)).thenReturn(Optional.of(second));
         when(profileRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
         var result = service.updateProfile(user, PlayerProfileDto.builder()
-                .language("en").responseLength("detailed").versionMode("unknown").build());
+                .language("en").responseLength("detailed").build());
         assertTrue(result.isSetupCompleted());
         assertEquals("en", service.getProfile(user).getLanguage());
         assertEquals("ar", service.getProfile(other).getLanguage());
         assertFalse(service.getProfile(other).isSetupCompleted());
-        verifyNoInteractions(profileVersionService);
-    }
-
-    @Test
-    void versionMustBeDocumentedAndCanBeCleared() {
-        PlayerProfile profile = PlayerProfile.builder().user(user).language("fr").build();
-        when(profileVersionService.supportedVersions()).thenReturn(List.of("2.18"));
-        when(profileRepository.findByUser(user)).thenReturn(Optional.of(profile));
-        when(profileRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        var request = PlayerProfileDto.builder().language("fr").responseLength("standard")
-                .versionMode("specific").gameVersion("2026-review").build();
-        assertThrows(ResponseStatusException.class, () -> service.updateProfile(user, request));
-        request.setGameVersion("2.18");
-        assertEquals("2.18", service.updateProfile(user, request).getGameVersion());
-        request.setVersionMode("unknown");
-        assertThrows(ResponseStatusException.class, () -> service.updateProfile(user, request));
-        request.setGameVersion(null);
-        assertNull(service.updateProfile(user, request).getGameVersion());
     }
 
 }

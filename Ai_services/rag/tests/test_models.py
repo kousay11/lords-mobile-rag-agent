@@ -18,7 +18,6 @@ def valid_metadata() -> dict:
         "source": "Official patch notes",
         "source_type": "official",
         "language": "en",
-        "game_version": "5.0",
         "reliability": 5,
         "status": "active",
         "topics": ["buildings", "progression", "buildings"],
@@ -71,7 +70,6 @@ class RetrieveRequestTests(unittest.TestCase):
         request = RetrieveRequest(
             query="cavalry familiar",
             language="fr",
-            game_version="5.0",
             topic="familiars",
             entity_type="familiar",
             source_type="official",

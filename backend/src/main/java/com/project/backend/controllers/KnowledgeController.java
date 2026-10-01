@@ -61,26 +61,24 @@ public class KnowledgeController {
             @RequestParam(value = "url", required = false) String url,
             @RequestParam("sourceType") String sourceType,
             @RequestParam("language") String language,
-            @RequestParam("gameVersion") String gameVersion,
             @RequestParam("reliability") short reliability,
             @RequestParam("topics") String topics) {
         List<String> topicList = Arrays.stream(topics.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
-        validateUploadMetadata(title, source, sourceType, language, gameVersion, reliability, topicList);
+        validateUploadMetadata(title, source, sourceType, language, reliability, topicList);
         KnowledgeDocumentDto created = service.createFromFile(file, title.trim(), source.trim(),
-                url == null || url.isBlank() ? null : url.trim(), sourceType, language, gameVersion.trim(),
+                url == null || url.isBlank() ? null : url.trim(), sourceType, language,
                 reliability, topicList, null);
         return ResponseEntity.created(URI.create("/api/admin/knowledge/documents/" + created.getId()))
                 .body(created);
     }
 
     private void validateUploadMetadata(String title, String source, String sourceType, String language,
-            String gameVersion, short reliability, List<String> topics) {
+            short reliability, List<String> topics) {
         if (title == null || title.isBlank() || title.trim().length() > 255
                 || source == null || source.isBlank() || source.trim().length() > 500
-                || gameVersion == null || gameVersion.isBlank() || gameVersion.trim().length() > 50
                 || !sourceType.matches("^(official|verified_community|community|reference)$")
                 || !language.matches("^[a-z]{2,3}(?:-[A-Z]{2})?$")
                 || reliability < 1 || reliability > 5

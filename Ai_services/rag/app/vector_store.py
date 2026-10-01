@@ -141,7 +141,6 @@ class VectorStoreClient:
             ("document_id", PayloadSchemaType.KEYWORD),
             ("source_type", PayloadSchemaType.KEYWORD),
             ("language", PayloadSchemaType.KEYWORD),
-            ("game_version", PayloadSchemaType.KEYWORD),
             ("topics", PayloadSchemaType.KEYWORD),
             ("entity_type", PayloadSchemaType.KEYWORD),
             ("status", PayloadSchemaType.KEYWORD),
@@ -390,7 +389,6 @@ class VectorStoreClient:
             "title": metadata.get("title", ""),
             "source_type": metadata.get("source_type", ""),
             "language": metadata.get("language", ""),
-            "game_version": metadata.get("game_version", ""),
             "published_at": metadata.get("published_at"),
             "collected_at": metadata.get("collected_at"),
             "topics": metadata.get("topics", []),
@@ -577,7 +575,6 @@ class VectorStoreClient:
     @staticmethod
     def _lords_mobile_filter_conditions(
         language: str = None,
-        game_version: str = None,
         topic: str = None,
         entity_type: str = None,
         source_type: str = None,
@@ -587,10 +584,6 @@ class VectorStoreClient:
         conditions: list[FieldCondition] = []
         if language:
             conditions.append(FieldCondition(key="language", match=MatchValue(value=language)))
-        if game_version:
-            conditions.append(
-                FieldCondition(key="game_version", match=MatchValue(value=game_version))
-            )
         if topic:
             conditions.append(FieldCondition(key="topics", match=MatchValue(value=topic)))
         if entity_type:
@@ -615,7 +608,6 @@ class VectorStoreClient:
         embedder=None,
         top_k: int = 10,
         language: str = None,
-        game_version: str = None,
         topic: str = None,
         entity_type: str = None,
         source_type: str = None,
@@ -633,7 +625,6 @@ class VectorStoreClient:
         filter_conditions.extend(
             self._lords_mobile_filter_conditions(
                 language=language,
-                game_version=game_version,
                 topic=topic,
                 entity_type=entity_type,
                 source_type=source_type,
@@ -690,7 +681,7 @@ class VectorStoreClient:
         if len(normalized_results) < 3:
             dense_results = self.search(
                 dense_query_vector, top_k=top_k * 2,
-                language=language, game_version=game_version, topic=topic,
+                language=language, topic=topic,
                 entity_type=entity_type, source_type=source_type,
                 statuses=statuses, min_reliability=min_reliability,
                 min_score=min_score,
@@ -712,7 +703,7 @@ class VectorStoreClient:
 
     def search(
         self, query_vector: list[float], top_k: int = 5,
-        language: str = None, game_version: str = None, topic: str = None,
+        language: str = None, topic: str = None,
         entity_type: str = None, source_type: str = None,
         statuses: list[str] = None, min_reliability: int = None,
         min_score: float = 0.5,
@@ -722,7 +713,6 @@ class VectorStoreClient:
         filter_conditions.extend(
             self._lords_mobile_filter_conditions(
                 language=language,
-                game_version=game_version,
                 topic=topic,
                 entity_type=entity_type,
                 source_type=source_type,
@@ -758,7 +748,6 @@ class VectorStoreClient:
         embedder=None,
         top_k: int = 10,
         language: str = None,
-        game_version: str = None,
         topic: str = None,
         entity_type: str = None,
         source_type: str = None,
@@ -774,7 +763,6 @@ class VectorStoreClient:
         filter_conditions.extend(
             self._lords_mobile_filter_conditions(
                 language=language,
-                game_version=game_version,
                 topic=topic,
                 entity_type=entity_type,
                 source_type=source_type,
@@ -843,7 +831,6 @@ class VectorStoreClient:
                         "title": payload.get("title") or source,
                         "source_type": payload.get("source_type"),
                         "language": payload.get("language"),
-                        "game_version": payload.get("game_version"),
                         "topics": payload.get("topics", []),
                         "status": payload.get("status"),
                         "reliability": payload.get("reliability"),
@@ -872,13 +859,14 @@ class VectorStoreClient:
         )
         return rows[:limit]
 
-    def delete_document(self, source: str) -> int:
-        source_filter = Filter(
-            must=[FieldCondition(key="source", match=MatchValue(value=source))]
+    def delete_document(self, document_id: str) -> int:
+        """Delete only points where document_id matches exactly (never by source)."""
+        doc_filter = Filter(
+            must=[FieldCondition(key="document_id", match=MatchValue(value=document_id))]
         )
         count_result = self.client.count(
             collection_name=COLLECTION,
-            count_filter=source_filter,
+            count_filter=doc_filter,
             exact=True,
         )
         deleted_chunks = count_result.count
@@ -887,7 +875,7 @@ class VectorStoreClient:
 
         self.client.delete(
             collection_name=COLLECTION,
-            points_selector=FilterSelector(filter=source_filter),
+            points_selector=FilterSelector(filter=doc_filter),
             wait=True,
         )
         return deleted_chunks

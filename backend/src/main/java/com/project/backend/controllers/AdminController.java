@@ -1,7 +1,9 @@
 package com.project.backend.controllers;
 
+import com.project.backend.dtos.FeedbackStatsDto;
 import com.project.backend.dtos.UpdateRoleDto;
 import com.project.backend.dtos.UserDto;
+import com.project.backend.services.implementations.FeedbackStatsService;
 import com.project.backend.services.interfaces.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import java.util.UUID;
 public class AdminController {
 
     private final AdminService adminService;
+    private final FeedbackStatsService feedbackStatsService;
 
     @GetMapping("/users")
     public ResponseEntity<List<UserDto>> getAllUsers() {
@@ -36,5 +39,11 @@ public class AdminController {
     public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
         adminService.deleteUser(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/feedback/stats")
+    public ResponseEntity<FeedbackStatsDto> feedbackStats(
+            @RequestParam(defaultValue = "30") int days) {
+        return ResponseEntity.ok(feedbackStatsService.stats(days));
     }
 }

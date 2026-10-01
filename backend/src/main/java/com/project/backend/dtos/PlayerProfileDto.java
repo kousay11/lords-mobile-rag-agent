@@ -20,16 +20,9 @@ public class PlayerProfileDto {
     @Pattern(regexp = "^(fr|en|ar)$")
     private String language;
 
-    @Size(max = 50)
-    private String gameVersion;
-
     @NotBlank
     @Pattern(regexp = "^(short|standard|detailed)$")
     private String responseLength;
-
-    @NotBlank
-    @Pattern(regexp = "^(unknown|specific)$")
-    private String versionMode;
 
     @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private boolean setupCompleted;
@@ -39,9 +32,6 @@ public class PlayerProfileDto {
 
     @Size(max = 100)
     private String playStyle;
-
-    @Size(max = 100)
-    private String kingdom;
 
     private JsonNode additionalContext;
 }

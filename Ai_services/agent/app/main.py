@@ -38,7 +38,6 @@ class ChatRequest(BaseModel):
     provider: str | None = None
     base_url: str | None = None
     language: str | None = Field(default=None, pattern=r"^[a-z]{2,3}(?:-[A-Z]{2})?$")
-    game_version: str | None = Field(default=None, max_length=50)
     player_context: dict[str, Any] = Field(default_factory=dict)
     search_type: str = Field(default="hybrid", pattern=r"^(hybrid|semantic|keyword)$")
     top_k: int = Field(default=8, ge=1, le=20)
@@ -53,7 +52,6 @@ class ChatResponse(BaseModel):
     provider: str
     intent: str
     language: str
-    game_version: str | None = None
     sources: list[dict[str, Any]] = Field(default_factory=list)
     confidence: float = 0.0
     needs_clarification: bool = False
@@ -72,7 +70,6 @@ class OpenAIChatRequest(BaseModel):
     provider: str | None = None
     base_url: str | None = None
     language: str | None = None
-    game_version: str | None = None
     player_context: dict[str, Any] = Field(default_factory=dict)
     stream: bool = False
 
@@ -111,7 +108,6 @@ async def _upsert_thread(
     user_id: str | None,
     preview: str,
     language: str | None,
-    game_version: str | None,
 ) -> None:
     if not CHECKPOINT_DB_URI:
         return
@@ -120,16 +116,15 @@ async def _upsert_thread(
         await connection.execute(
             """
             INSERT INTO agent_threads
-                (thread_id, user_id, preview, language, game_version, updated_at)
-            VALUES (%s, %s, %s, %s, %s, NOW())
+                (thread_id, user_id, preview, language, updated_at)
+            VALUES (%s, %s, %s, %s, NOW())
             ON CONFLICT (thread_id) DO UPDATE SET
                 user_id = COALESCE(EXCLUDED.user_id, agent_threads.user_id),
                 preview = EXCLUDED.preview,
                 language = COALESCE(EXCLUDED.language, agent_threads.language),
-                game_version = COALESCE(EXCLUDED.game_version, agent_threads.game_version),
                 updated_at = NOW()
             """,
-            (thread_id, user_id, preview[:400], language, game_version),
+            (thread_id, user_id, preview[:400], language),
         )
 
 
@@ -150,7 +145,7 @@ async def _list_thread_metadata(limit: int, offset: int) -> list[dict[str, Any]]
     async with connection:
         cursor = await connection.execute(
             """
-            SELECT thread_id, user_id, preview, language, game_version, updated_at
+            SELECT thread_id, user_id, preview, language, updated_at
             FROM agent_threads
             ORDER BY updated_at DESC
             LIMIT %s OFFSET %s
@@ -328,7 +323,6 @@ async def create_thread():
             user_id=None,
             preview="",
             language=None,
-            game_version=None,
         )
     return {"thread_id": thread_id, "created_at": time.time(), "status": "created"}
 
@@ -356,7 +350,6 @@ async def get_thread(thread_id: str):
         "thread_id": thread_id,
         "messages": messages,
         "language": values.get("language"),
-        "game_version": values.get("game_version"),
         "player_context": values.get("player_context", {}),
     }
 
@@ -397,9 +390,8 @@ async def _invoke_chat(request: ChatRequest) -> ChatResponse:
     }
     if request.user_id:
         state["user_id"] = request.user_id
-    # Always overwrite checkpointed preferences, including an explicitly unknown version.
+    # Always overwrite checkpointed preferences.
     state["language"] = request.language
-    state["game_version"] = request.game_version
     state["player_context"] = request.player_context
 
     result = await app.state.graph.ainvoke(
@@ -426,7 +418,6 @@ async def _invoke_chat(request: ChatRequest) -> ChatResponse:
         user_id=request.user_id,
         preview=user_message,
         language=result.get("language"),
-        game_version=result.get("game_version"),
     )
     return ChatResponse(
         thread_id=thread_id,
@@ -435,7 +426,6 @@ async def _invoke_chat(request: ChatRequest) -> ChatResponse:
         provider=provider,
         intent=result.get("intent", "fact_lookup"),
         language=result.get("language", "fr"),
-        game_version=result.get("game_version"),
         sources=result.get("sources", []),
         confidence=float(result.get("confidence", 0.0)),
         needs_clarification=bool(result.get("needs_clarification", False)),
@@ -469,7 +459,6 @@ async def openai_chat_completions(request: OpenAIChatRequest):
             provider=request.provider,
             base_url=request.base_url,
             language=request.language,
-            game_version=request.game_version,
             player_context=request.player_context,
         )
     )
@@ -491,6 +480,5 @@ async def openai_chat_completions(request: OpenAIChatRequest):
         "sources": result.sources,
         "confidence": result.confidence,
         "needs_clarification": result.needs_clarification,
-        "game_version": result.game_version,
         "read_only": True,
     }

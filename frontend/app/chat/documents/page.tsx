@@ -11,7 +11,7 @@ import { getRole } from '@/lib/auth'
 const ACCEPTED_EXTENSIONS = ['.pdf', '.md', '.markdown', '.txt'] as const
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
-const emptyForm = { title: '', source: '', url: '', sourceType: 'official' as const, language: 'fr', gameVersion: '', reliability: 5, topics: '' }
+const emptyForm = { title: '', source: '', url: '', sourceType: 'official' as const, language: 'fr', reliability: 5, topics: '' }
 
 export default function KnowledgePage() {
   const router = useRouter()
@@ -52,7 +52,6 @@ export default function KnowledgePage() {
       if (form.url) data.append('url', form.url)
       data.append('sourceType', form.sourceType)
       data.append('language', form.language)
-      data.append('gameVersion', form.gameVersion)
       data.append('reliability', String(form.reliability))
       data.append('topics', form.topics)
       await uploadKnowledgeDocument(data)
@@ -97,7 +96,6 @@ export default function KnowledgePage() {
           <input type="url" className={fieldClass} placeholder="URL (optionnelle)" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} />
           <div className="grid grid-cols-2 gap-3">
             <select className={fieldClass} value={form.sourceType} onChange={(e) => setForm({ ...form, sourceType: e.target.value as typeof form.sourceType })}><option value="official">Officielle</option><option value="verified_community">Communauté vérifiée</option><option value="community">Communauté</option><option value="reference">Référence</option></select>
-            <input required className={fieldClass} placeholder="Version" value={form.gameVersion} onChange={(e) => setForm({ ...form, gameVersion: e.target.value })} />
             <input required pattern="[a-z]{2,3}(-[A-Z]{2})?" className={fieldClass} placeholder="Langue" value={form.language} onChange={(e) => setForm({ ...form, language: e.target.value })} />
             <select className={fieldClass} value={form.reliability} onChange={(e) => setForm({ ...form, reliability: Number(e.target.value) })}>{[5,4,3,2,1].map((n) => <option key={n} value={n}>Fiabilité {n}/5</option>)}</select>
           </div>
@@ -120,7 +118,7 @@ export default function KnowledgePage() {
           {documents.map((document) => (
             <article key={document.id} className="glass rounded-2xl p-5">
               <div className="flex items-start justify-between gap-4">
-                <div><h3 className="font-semibold">{document.title}</h3><p className="mt-1 text-xs text-muted">{document.source} · {document.language} · version {document.gameVersion}</p></div>
+                <div><h3 className="font-semibold">{document.title}</h3><p className="mt-1 text-xs text-muted">{document.source} · {document.language}</p></div>
                 <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${document.status === 'active' ? 'bg-accent/10 text-accent' : document.status === 'needs_review' ? 'bg-danger/10 text-danger' : 'bg-primary/10 text-primary'}`}>{document.status}</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">{document.topics.map((topic) => <span key={topic} className="rounded bg-background px-2 py-1 text-xs text-muted">{topic}</span>)}</div>
