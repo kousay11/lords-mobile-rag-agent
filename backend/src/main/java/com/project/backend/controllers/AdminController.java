@@ -1,9 +1,11 @@
 package com.project.backend.controllers;
 
 import com.project.backend.dtos.FeedbackStatsDto;
+import com.project.backend.dtos.NegativeFeedbackPageDto;
 import com.project.backend.dtos.UpdateRoleDto;
 import com.project.backend.dtos.UserDto;
 import com.project.backend.services.implementations.FeedbackStatsService;
+import com.project.backend.services.implementations.NegativeFeedbackService;
 import com.project.backend.services.interfaces.AdminService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +24,7 @@ public class AdminController {
 
     private final AdminService adminService;
     private final FeedbackStatsService feedbackStatsService;
+    private final NegativeFeedbackService negativeFeedbackService;
 
     @GetMapping("/users")
     public ResponseEntity<List<UserDto>> getAllUsers() {
@@ -45,5 +48,15 @@ public class AdminController {
     public ResponseEntity<FeedbackStatsDto> feedbackStats(
             @RequestParam(defaultValue = "30") int days) {
         return ResponseEntity.ok(feedbackStatsService.stats(days));
+    }
+
+    @GetMapping("/feedback/negative")
+    public ResponseEntity<NegativeFeedbackPageDto> negativeFeedback(
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(required = false) String intent,
+            @RequestParam(required = false, name = "q") String query,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(negativeFeedbackService.list(days, intent, query, page, size));
     }
 }

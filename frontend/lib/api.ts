@@ -153,6 +153,29 @@ export interface FeedbackStats {
 export const getFeedbackStats = async (days = 30) =>
   (await apiClient.get<FeedbackStats>('/api/admin/feedback/stats', { params: { days } })).data
 
+export interface NegativeFeedbackItem {
+  feedbackId: string
+  createdAt: string
+  intent: string
+  confidence?: number | null
+  question: string
+  answerExcerpt: string
+  comment?: string | null
+  threadId?: string | null
+  messageId: string
+  sources?: unknown
+}
+
+export interface NegativeFeedbackPage {
+  items: NegativeFeedbackItem[]
+  total: number
+  page: number
+  size: number
+}
+
+export const getNegativeFeedback = async (params: { days?: number; intent?: string; q?: string; page?: number; size?: number } = {}) =>
+  (await apiClient.get<NegativeFeedbackPage>('/api/admin/feedback/negative', { params })).data
+
 export interface KnowledgeDocument {
   id: string
   title: string
