@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
@@ -9,6 +9,8 @@ import { ArrowRight, BookOpen, Bot, Building2, CalendarDays, Castle, Crown, Flas
 import { AtmosphericBackground } from '@/components/layout/atmospheric-background'
 import { CategoryCard } from './category-card'
 import { ShimmerButton } from '@/components/ui/shimmer-button'
+import { isAuthenticated, getUsername, getRole } from '@/lib/auth'
+import { useAuth } from '@/hooks/useAuth'
 
 const categories = [
   { icon: Users, title: 'Héros', description: 'Compositions, rôles et synergies.', prompt: 'Quels héros choisir et comment créer une bonne composition ?' },
@@ -70,9 +72,21 @@ const troopCounters = [
 
 export function KingdomLanding() {
   const router = useRouter()
+  const { logout } = useAuth()
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState(false)
   const [activeStrategy, setActiveStrategy] = useState(0)
+  const [mounted, setMounted] = useState(false)
+  const [authenticated, setAuthenticated] = useState(false)
+  const [username, setUsername] = useState<string | null>(null)
+  const [role, setRole] = useState<string | null>(null)
+
+  useEffect(() => {
+    setAuthenticated(isAuthenticated())
+    setUsername(getUsername())
+    setRole(getRole())
+    setMounted(true)
+  }, [])
   const ask = (prompt: string) => {
     if (!prompt.trim()) return
     localStorage.setItem('lords_mobile_pending_prompt', prompt.trim())
@@ -86,10 +100,10 @@ export function KingdomLanding() {
       <header className="relative z-40 border-b border-primary/20 bg-background/72 backdrop-blur-lg">
         <nav className="mx-auto flex h-20 max-w-7xl items-center justify-between px-5 lg:px-8">
           <Link href="/" className="flex items-center gap-3"><span className="relative flex h-10 w-10 items-center justify-center border border-primary/60 bg-primary/10 text-primary shadow-gold"><Castle className="h-5 w-5" /><span className="absolute -bottom-1 -right-1 h-2 w-2 bg-accent shadow-blue" /></span><span><strong className="block font-display text-sm tracking-[.18em] text-gold-bright">KINGDOM SAGE</strong><small className="text-[9px] uppercase tracking-[.24em] text-muted">Royal Archives</small></span></Link>
-          <div className="hidden items-center gap-8 text-xs font-semibold uppercase tracking-[.16em] md:flex"><Link className="text-primary" href="/">Royaume</Link><Link className="text-muted hover:text-gold-bright" href="/chat">Conseiller</Link><Link className="text-muted hover:text-gold-bright" href="/guides">Guides</Link><Link className="text-muted hover:text-gold-bright" href="/login">Connexion</Link><Link href="/register" className="border border-primary/60 px-4 py-2 text-primary hover:bg-primary/10">Rejoindre</Link></div>
+          <div className="hidden items-center gap-8 text-xs font-semibold uppercase tracking-[.16em] md:flex"><Link className="text-primary" href="/">Kingdom</Link><Link className="text-muted hover:text-gold-bright" href="/guides">Guides</Link>{!mounted || !authenticated ? (<><Link className="text-muted hover:text-gold-bright" href="/login">Login</Link><Link href="/register" className="border border-primary/60 px-4 py-2 text-primary hover:bg-primary/10">Join</Link></>) : (<><Link className="text-muted hover:text-gold-bright" href="/dashboard">Dashboard</Link>{role === 'ADMIN' && <Link className="text-muted hover:text-gold-bright" href="/admin">Users</Link>}<span className="text-gold-bright normal-case tracking-normal">{username}</span><button onClick={logout} className="border border-primary/60 px-4 py-2 text-primary hover:bg-primary/10">Logout</button></>)}</div>
           <button onClick={() => setMenu(!menu)} className="p-2 text-primary md:hidden" aria-label="Menu">{menu ? <X /> : <Menu />}</button>
         </nav>
-        {menu && <div className="border-t border-border bg-background p-5 md:hidden"><div className="flex flex-col gap-4 text-sm"><Link href="/chat">Conseiller</Link><Link href="/guides">Guides</Link><Link href="/login">Connexion</Link></div></div>}
+        {menu && <div className="border-t border-border bg-background p-5 md:hidden"><div className="flex flex-col gap-4 text-sm"><Link href="/guides">Guides</Link>{!mounted || !authenticated ? (<Link href="/login">Login</Link>) : (<><Link href="/dashboard">Dashboard</Link>{role === 'ADMIN' && <Link href="/admin">Users</Link>}<button onClick={logout} className="text-left text-primary">Logout ({username})</button></>)}</div></div>}
       </header>
 
       <section className="relative flex min-h-[720px] items-center px-5 py-24">
