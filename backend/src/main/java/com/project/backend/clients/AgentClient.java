@@ -3,6 +3,8 @@ package com.project.backend.clients;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.project.backend.exceptions.DownstreamServiceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -16,6 +18,8 @@ import java.util.Map;
 
 @Component
 public class AgentClient {
+
+    private static final Logger log = LoggerFactory.getLogger(AgentClient.class);
 
     private final RestClient client;
 
@@ -42,6 +46,8 @@ public class AgentClient {
             }
             return response;
         } catch (RestClientResponseException ex) {
+            log.warn("Lords Mobile agent rejected chat request (status {}): {}",
+                    ex.getStatusCode().value(), truncatedBody(ex));
             throw new DownstreamServiceException(
                     HttpStatus.BAD_GATEWAY,
                     "Lords Mobile agent rejected the request (status " + ex.getStatusCode().value() + ")");
@@ -55,6 +61,18 @@ public class AgentClient {
             return client.get().uri("/health").retrieve().body(JsonNode.class);
         } catch (Exception ex) {
             return null;
+        }
+    }
+
+    private static String truncatedBody(RestClientResponseException ex) {
+        try {
+            String body = ex.getResponseBodyAsString();
+            if (body == null) {
+                return "<empty>";
+            }
+            return body.length() > 2000 ? body.substring(0, 2000) + "…" : body;
+        } catch (Exception ignored) {
+            return "<unreadable>";
         }
     }
 

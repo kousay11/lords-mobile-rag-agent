@@ -1,0 +1,24 @@
+**How Guild Fest quests work**
+
+1. **Event overview**  
+   Guild Fest is a 7‑day event where guilds compete for points by completing quests [2].  
+
+2. **Quest board**  
+   * 20 guild‑quest slots and 2 solo‑quest slots are available on the board [5].  
+   * Each quest awards a variable amount of points, from +93 to +319 [1].  
+
+3. **Claiming a quest**  
+   * When a guild member claims a quest, the quest is removed from the board and the guild earns the points once the quest is completed.  
+   * After a quest is claimed or removed, a new quest appears on the board 15 minutes later [7].  
+
+4. **Removing a quest**  
+   * Only guild members ranked 4 or 5 can remove quests that have **not** yet been claimed.  
+   * Removing an unclaimed quest does **not** cost any points or attempts [7].  
+
+**What happens when a quest is deleted**
+
+- If a quest is removed (by a rank‑4 or rank‑5 member) before it is claimed, it simply disappears from the board and a fresh quest will appear after 15 minutes.  
+- No points are lost, and no attempts are consumed.  
+- The guild’s total point tally remains unchanged until a quest is actually completed.  
+
+*Note:* The documentation does not mention any penalty for deleting a quest, nor does it describe what happens if a quest is deleted after being claimed. The information above reflects the current, documented behavior.

@@ -1,0 +1,122 @@
+{
+  "draft": "**How Guild Fest quests work**\n\n1. **Event structure** – Guild Fest is a 7‑day event where guilds compete for points by completing quests.  \n   *Source: [2]*  \n\n2. **Quest board** – The board contains 20 guild‑quest slots and 2 solo‑quest slots.  \n   *Source: [5]*  \n\n3. **Point rewards** – Each quest awards a variable amount of points (from +93 to +319).  \n   *Source: [1]*  \n\n4. **Claiming a quest** – When a guild member claims a quest, the quest is removed from the board and the guild earns the points.  \n\n**What happens when a quest is deleted (removed)**\n\n- A guild member with rank 4 or 5 can remove a quest that has not yet been claimed.  \n- Removing a quest does **not** cost any points or attempts.  \n- After a quest is removed, a new quest appears on the board 15 minutes later.  \n  *Source: [7]*  \n\n**Key take‑away**\n\n- Deleting a quest is simply a “reset” of that slot; it frees up the slot for a new quest and keeps your guild’s point total unchanged.  \n- The new quest will appear after a short delay (15 minutes).  \n\n**Citations**\n\n[1] Guild Fest: “Quests give anywhere from +93 to +319 points.”  \n[2] Guild Fest: “7‑day event where Guilds compete to score points.”  \n[5] Guild Fest: “20 Guild Quest slots on the Guild Fest Board.”  \n[7] Guild Fest: “When a quest is claimed or removed, a new one will appear 15 minutes later. Rank 4 and 5 guild members can remove quests that have not yet been claimed; no points or attempts will be lost.”",
+  "issues": [
+    "unsupported_quoted_term:reset",
+    "unsupported_quoted_term:Quests give anywhere from +93 to +319 points.",
+    "unsupported_quoted_term:7‑day event where Guilds compete to score points."
+  ],
+  "chunks": [
+    {
+      "text": "=   Quests\n=\n \n \nThere are several hundred different quests available in Guild Fest, which give anywhere from +93, to +319 points.",
+      "score": 0.9167,
+      "metadata": {
+        "chunk_id": "20a6b1ea-4efd-5e67-bc11-368b9ccee247",
+        "document_id": "c4dc6148-e943-43ab-a1bf-4a78baab42ee",
+        "title": "Guild Fest — Wiki",
+        "url": null,
+        "source_type": "community",
+        "language": "en",
+        "status": "active",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "- Guild Fest**, often shortened to **GF**, is a 7 day event where Guilds compete to score points, by completing Guild Fest Quests.",
+      "score": 0.8,
+      "metadata": {
+        "chunk_id": "2b2fe1eb-b009-57c0-b88b-ca7f84ad9fb2",
+        "document_id": "c4dc6148-e943-43ab-a1bf-4a78baab42ee",
+        "title": "Guild Fest — Wiki",
+        "url": null,
+        "source_type": "community",
+        "language": "en",
+        "status": "active",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "These skins are automatically applied after the end of Guild Fest, and can only be changed if you place out of the required rank in the next Guild Fest. { class=article-table border=1\n +Guild Skins\n Skin   Description   Requirement\n -\n   Normal skin   Default\n -\n   Gold skin   Reach top 100 in Guild Fest Master Gauntlet world ranking\n -\n   Gold skin with simple border   Reach top 50 in Guild Fest Master Gauntlet world ranking\n -\n   Gold skin with fancy border   Reach top 10 in Guild Fest Master Gauntlet world ranking\n -\n   Gold skin with intricate border   Reach 1st place in Guild Fest Master Gauntlet world ranking\n }\n-  Guilds that reach 1st place will also receive a special glowing frame around their guild icon.",
+      "score": 0.75,
+      "metadata": {
+        "chunk_id": "e94b43b7-506d-5df1-9fc1-e9cdc9ea6dc2",
+        "document_id": "c4dc6148-e943-43ab-a1bf-4a78baab42ee",
+        "title": "Guild Fest — Wiki",
+        "url": null,
+        "source_type": "community",
+        "language": "en",
+        "status": "active",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "- Defense Formation for Free Heroes: Rose Knight, Prima Donna, Tracker, Death Knight and Demon Slayer. - Offense and Defense Formation for Free Heroes: Rose Knight, Tracker, Trickster, Prima Donna and Black Crow.",
+      "score": 0.75,
+      "metadata": {
+        "chunk_id": "5a056710-70a2-5f7f-8365-f5a3e7384bd8",
+        "document_id": "wiki-colosseum-en-002",
+        "title": "Colosseum — Wiki",
+        "url": "https://lordsmobile.fandom.com/wiki/Colosseum",
+        "source_type": "verified_community",
+        "language": "en",
+        "status": "needs_review",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "There are 2 Solo Quest slots and 20 Guild Quest slots on the Guild Fest Board.",
+      "score": 0.6875,
+      "metadata": {
+        "chunk_id": "342cc8ac-e459-5bff-bef8-47c2e8220df7",
+        "document_id": "c4dc6148-e943-43ab-a1bf-4a78baab42ee",
+        "title": "Guild Fest — Wiki",
+        "url": null,
+        "source_type": "community",
+        "language": "en",
+        "status": "active",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "Gallery\n\n \nGuild Fest Image.jpg|Promotional image\nGuild Fest Image-0.jpg|Promotional image\nGF Quest.png|Guild Fest help quest",
+      "score": 0.5893,
+      "metadata": {
+        "chunk_id": "5d04182d-01ad-55e4-a95e-93ad8c942954",
+        "document_id": "c4dc6148-e943-43ab-a1bf-4a78baab42ee",
+        "title": "Guild Fest — Wiki",
+        "url": null,
+        "source_type": "community",
+        "language": "en",
+        "status": "active",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "When a quest is claimed or removed, a new one will appear 15 minutes later. Rank 4 and 5 guild members can remove quests that have not yet been claimed; no points or attempts will be lost.",
+      "score": 0.5,
+      "metadata": {
+        "chunk_id": "285ae1ec-eb35-56e4-832a-dd1a39dbffa4",
+        "document_id": "c4dc6148-e943-43ab-a1bf-4a78baab42ee",
+        "title": "Guild Fest — Wiki",
+        "url": null,
+        "source_type": "community",
+        "language": "en",
+        "status": "active",
+        "reliability": 3
+      }
+    },
+    {
+      "text": "HeroesPlease switch your screen orientation to portrait (vertical) modeHeroesPublished：2019-04-15\n\n# Free Heroes\n\nArmy Boost: Rose Knight, Watcher, Chaos Dragon \n\nInfantry Boost: Demon Slayer, Sea Squire, Soul Forger, Oath Keeper\n\nRanged Boost: Tracker, Snow Queen, Black Crow, Death Archer\n\nCavalry Boost: Child of Light, Death Knight, Night Raven\n\nSiege Engine Boost: Incinerator, Prima Donna, Elemetalist\n\nTrap Boost: Black Crow, Demon Slayer, Child of Light, Snow Queen, Death Archer, Bombin’ Goblin\n\nConstruction Boost: Scarlet Bolt, Sage of Storms\n\nResearch Boost: Trickster\n\nTraining Boost: Watcher \n\nEnergy Boost: Trickster \n\nProduction Boost (Timber): Rose Knight, Incinerator \n\nProduction Boost (Food): Elementalist, Oath Keeper\n\nProduction Boost (Stone): Death Knight, Sea Squire\n\nProduction Boost (Ore): Tracker, Death Archer\n\nProduction Boost (Gold): Soul Forger\n\n----------------------------------------------\n\n# P2P Heroes\n\nArmy Boost: Storm Fox, Berserker, Lore Weaver, Prince of Thieves, Dream Witch, Songstress of the Sea\n\nInfantry Boost: Twilight Priestess, Grim Wolf, Femme Fatale, The Big Guy, Cursed Hunter\n\nRanged Boost: Grove Guardian, Mastercook, Ethereal Guide, Petite Devil, Snail Princess\n\nCavalry Boost: Steambot, Vengeful Centaur, Barbarian, Don Guapo\n\nInfantry & Ranged Boosts: Lightweaver\n\nInfantry & Cavalry Boosts: Shape Shifter\n\nCavalry & Ranged Boosts: Dark Magister\n\nConstruction Boost: Witch Doll\n\nResearch Boost: Witch Doll, Dark Follower\n\nTraining Boost: Storm Fox, Witch Doll, Dream Witch, Dark Follower\n\nProduction Boost (Gold): Dark Follower\n\nFamiliar Training Boost: Snail Princess\n\nMerging Speed (Pact) Boost: Cursed Hunter\n\nAnima Storage Boost: Don Guapo\n\nMax Coalition Army Size (Wonder) Boost: Snail Princess, Cursed Hunter, Don Guapo",
+      "score": 0.5,
+      "metadata": {
+        "chunk_id": "1d9f2df1-f18c-56a3-a2b9-68dd0ab5bd46",
+        "document_id": "official-igg-heroes-2026",
+        "title": "IGG Official Guide — Heroes (archive 2019, collected 2026)",
+        "url": "https://lordsmobile.igg.com/project/game_tool/index.php?action=play_content&cate=1",
+        "source_type": "official",
+        "language": "en",
+        "status": "deprecated",
+        "reliability": 5
+      }
+    }
+  ]
+}

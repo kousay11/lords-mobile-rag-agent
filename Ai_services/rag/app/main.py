@@ -394,13 +394,3 @@ async def delete_document(document_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.delete("/collection")
-async def reset_collection():
-    _require_ready()
-    try:
-        models["vs"].reset_collection()
-        return {"status": "collection reset"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))

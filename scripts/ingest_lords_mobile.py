@@ -80,7 +80,7 @@ def to_document(data_dir: Path, record: dict) -> dict | None:
         return None
 
     required = (
-        "id", "title", "source", "source_type", "language", "game_version",
+        "id", "title", "source", "source_type", "language",
         "topics", "reliability", "status",
     )
     missing = [field for field in required if record.get(field) in (None, "")]
@@ -90,7 +90,7 @@ def to_document(data_dir: Path, record: dict) -> dict | None:
     metadata = {
         key: value
         for key, value in record.items()
-        if key not in {"id", "path", "download_url"}
+        if key not in {"id", "path", "download_url", "game_version"}
     }
     metadata["document_id"] = str(record["id"])
     metadata["source"] = metadata.get("source") or source_path.name

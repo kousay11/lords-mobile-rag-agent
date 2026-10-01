@@ -23,6 +23,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,6 +76,85 @@ class KnowledgeServiceTest {
 
         assertEquals("active", result.getStatus());
         assertEquals(3, result.getQdrantChunks());
+    }
+
+    @Test
+    void zeroChunksNeverBecomesActive() {
+        KnowledgeDocument document = KnowledgeDocument.builder()
+                .title("Guide test")
+                .source("guide-test.md")
+                .sourceType("official")
+                .language("fr")
+                .reliability((short) 5)
+                .status(KnowledgeDocument.Status.PENDING)
+                .contentHash("0123456789abcdef0123456789abcdef")
+                .content("Contenu documentaire suffisamment précis.")
+                .collectedAt(java.time.Instant.now())
+                .topics(JsonNodeFactory.instance.arrayNode().add("test"))
+                .build();
+        document.setId(UUID.randomUUID());
+        when(repository.findById(document.getId())).thenReturn(Optional.of(document));
+        when(repository.save(any(KnowledgeDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(ragClient.ingestText(anyString(), anyMap()))
+                .thenReturn(JsonNodeFactory.instance.objectNode().put("ingested_chunks", 0));
+
+        ResponseStatusException error = assertThrows(
+                ResponseStatusException.class,
+                () -> service.index(document.getId()));
+
+        assertEquals(422, error.getStatusCode().value());
+        assertEquals(KnowledgeDocument.Status.NEEDS_REVIEW, document.getStatus());
+        assertEquals(0, document.getQdrantChunks());
+    }
+
+    @Test
+    void deletePendingWithChunksStillCleansQdrantByDocumentId() {
+        UUID id = UUID.randomUUID();
+        KnowledgeDocument document = KnowledgeDocument.builder()
+                .title("Guide test")
+                .source("guide-test.md")
+                .sourceType("official")
+                .language("fr")
+                .reliability((short) 5)
+                .status(KnowledgeDocument.Status.PENDING)
+                .contentHash("0123456789abcdef0123456789abcdef")
+                .content("Contenu documentaire suffisamment précis.")
+                .collectedAt(java.time.Instant.now())
+                .topics(JsonNodeFactory.instance.arrayNode().add("test"))
+                .qdrantChunks(4)
+                .build();
+        document.setId(id);
+        when(repository.findById(id)).thenReturn(Optional.of(document));
+
+        service.delete(id);
+
+        verify(ragClient).deleteDocumentById(eq(id.toString()));
+        verify(repository).delete(document);
+    }
+
+    @Test
+    void deletePendingWithoutChunksSkipsQdrant() {
+        UUID id = UUID.randomUUID();
+        KnowledgeDocument document = KnowledgeDocument.builder()
+                .title("Guide test")
+                .source("guide-test.md")
+                .sourceType("official")
+                .language("fr")
+                .reliability((short) 5)
+                .status(KnowledgeDocument.Status.PENDING)
+                .contentHash("0123456789abcdef0123456789abcdef")
+                .content("Contenu documentaire suffisamment précis.")
+                .collectedAt(java.time.Instant.now())
+                .topics(JsonNodeFactory.instance.arrayNode().add("test"))
+                .qdrantChunks(0)
+                .build();
+        document.setId(id);
+        when(repository.findById(id)).thenReturn(Optional.of(document));
+
+        service.delete(id);
+
+        verifyNoInteractions(ragClient);
+        verify(repository).delete(document);
     }
 
     private KnowledgeDocumentRequestDto validRequest() {

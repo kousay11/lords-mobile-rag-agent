@@ -105,8 +105,11 @@ class VectorStoreClient:
     def _collection_matches_expected_schema(self) -> bool:
         try:
             collection_info = self.client.get_collection(collection_name=COLLECTION)
-        except Exception:
-            return False
+        except Exception as ex:
+            raise RuntimeError(
+                f"Could not verify Qdrant collection {COLLECTION!r}; "
+                f"refusing to modify it: {ex}"
+            ) from ex
 
         params = getattr(getattr(collection_info, "config", None), "params", None)
         vectors = getattr(params, "vectors", None)
@@ -163,10 +166,11 @@ class VectorStoreClient:
             return
 
         if not self._collection_matches_expected_schema():
-            print(f"Warning: recreating Qdrant collection {COLLECTION} because the schema is incompatible.")
-            self.client.delete_collection(collection_name=COLLECTION)
-            self._create_collection()
-            return
+            raise RuntimeError(
+                f"Qdrant collection {COLLECTION!r} exists with an incompatible schema; "
+                "refusing to delete/recreate it automatically. "
+                "Resolve the mismatch manually instead."
+            )
 
         self._create_payload_indexes()
 
@@ -280,7 +284,7 @@ class VectorStoreClient:
         if len(sentences) <= 1:
             # Short segments: keep if long enough, filter out question fragments
             text = sentences[0] if sentences else ""
-            if len(text) < 80:
+            if len(text) < 40:
                 return []
             return sentences
 
@@ -329,9 +333,13 @@ class VectorStoreClient:
         return chunks
 
     def _tokenize(self, text: str) -> list[str]:
-        """Tokenize text into meaningful terms, filtering stopwords and short tokens."""
-        # Lowercase and extract alphanumeric tokens (including hyphenated words)
-        tokens = re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)*", text.lower())
+        """Tokenize text into meaningful terms, filtering stopwords and short tokens.
+
+        Unicode-aware: matches letter sequences in any script (Latin, Arabic, ...),
+        including hyphenated compounds. ASCII-only patterns would silently drop
+        Arabic terms and leave keyword search mute on them.
+        """
+        tokens = re.findall(r"[^\W\d_]+(?:-[^\W\d_]+)*", text.lower(), flags=re.UNICODE)
         # Filter stopwords and very short tokens
         tokens = [t for t in tokens if t not in _STOPWORDS and len(t) > 2]
         return tokens
@@ -372,10 +380,6 @@ class VectorStoreClient:
             indices=[i for i, _ in sorted_items],
             values=[v for _, v in sorted_items],
         )
-
-    def reset_collection(self):
-        self.client.delete_collection(COLLECTION)
-        self._ensure_collection()
 
     def _build_chunk_payload(
         self, chunk: str, metadata: dict, chunk_index: int
@@ -458,11 +462,13 @@ class VectorStoreClient:
         if not chunks:
             return []
 
-        # Filter out low-quality chunks: too short, question-only fragments, or bare titles
+        # Filter out low-quality chunks: too short, question-only fragments, or bare titles.
+        # Threshold kept low (~40 chars) so short but relevant statements survive
+        # while boilerplate fragments are still removed.
         valid_chunks = []
         for chunk in chunks:
             stripped = chunk.strip()
-            if len(stripped) < 80:
+            if len(stripped) < 40:
                 continue
             # Skip question-only fragments (ends with ? and is short)
             if stripped.endswith('?') and len(stripped) < 100:
@@ -499,7 +505,20 @@ class VectorStoreClient:
                     payload=payload,
                 )
             )
-        self.client.upsert(collection_name=COLLECTION, points=points)
+        try:
+            self.client.upsert(collection_name=COLLECTION, points=points)
+        except Exception:
+            # Best-effort cleanup of this revision's new points only;
+            # never touch other documents' points.
+            try:
+                self.client.delete(
+                    collection_name=COLLECTION,
+                    points_selector=ids,
+                    wait=False,
+                )
+            except Exception:
+                pass
+            raise
         self._remove_superseded_chunks(
             payload_metadata["document_id"], payload_metadata["content_hash"]
         )
@@ -522,11 +541,11 @@ class VectorStoreClient:
         if not chunks:
             return {"chunks_created": 0, "chunks_filtered": 0, "chunk_texts": []}
 
-        # Filter and track
+        # Filter and track (threshold ~40 chars so short relevant statements survive)
         all_chunks = [c.strip() for c in chunks]
         valid_chunks = []
         for stripped in all_chunks:
-            if len(stripped) < 80:
+            if len(stripped) < 40:
                 continue
             if stripped.endswith('?') and len(stripped) < 100:
                 continue
@@ -561,7 +580,20 @@ class VectorStoreClient:
                 )
             )
         if points:
-            self.client.upsert(collection_name=COLLECTION, points=points)
+            try:
+                self.client.upsert(collection_name=COLLECTION, points=points)
+            except Exception:
+                # Best-effort cleanup of this revision's new points only;
+                # never touch other documents' points.
+                try:
+                    self.client.delete(
+                        collection_name=COLLECTION,
+                        points_selector=ids,
+                        wait=False,
+                    )
+                except Exception:
+                    pass
+                raise
             self._remove_superseded_chunks(
                 payload_metadata["document_id"], payload_metadata["content_hash"]
             )
@@ -699,7 +731,9 @@ class VectorStoreClient:
                 if len(normalized_results) >= top_k:
                     break
 
-        return normalized_results
+        # Both branches now carry normalized 0-1 scores: sort and trim.
+        normalized_results.sort(key=lambda r: r["score"], reverse=True)
+        return normalized_results[:top_k]
 
     def search(
         self, query_vector: list[float], top_k: int = 5,
@@ -733,11 +767,15 @@ class VectorStoreClient:
         )
         results_list = []
         for r in results.points:
+            norm_score = normalize_score(r.score, "semantic")
+            if norm_score < min_score:
+                continue
             payload = r.payload or {}
             text = payload.get("text", "")
             results_list.append({
                 "text": text,
-                "score": r.score,
+                "score": norm_score,
+                "raw_score": float(r.score),
                 "metadata": {k: v for k, v in payload.items() if k != "text"}
             })
         return results_list

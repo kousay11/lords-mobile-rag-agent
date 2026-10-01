@@ -36,6 +36,24 @@ class ApiContractTests(unittest.TestCase):
         self.assertNotIn("/optimization/respond", routes)
         self.assertNotIn("/scenario", routes)
 
+    def test_chat_unexpected_error_is_logged_and_stays_generic(self):
+        from unittest.mock import AsyncMock, patch
+
+        from fastapi.testclient import TestClient
+
+        import main as main_module
+
+        with (
+            patch.object(
+                main_module, "_invoke_chat", new=AsyncMock(side_effect=RuntimeError("boom"))
+            ),
+            patch.object(main_module.logger, "exception") as log_exc,
+        ):
+            response = TestClient(main_module.app).post("/chat", json={"message": "hi"})
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json()["detail"], "boom")
+        log_exc.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main()

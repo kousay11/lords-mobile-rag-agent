@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from contextlib import asynccontextmanager
 from typing import Any
@@ -18,6 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from config import DEFAULT_PROVIDER, FULL_CONFIG, LLM_MODEL, PROVIDERS
 from db import CHECKPOINT_DB_URI, get_db_connection
 from graph import build_graph
+from retrieval_config import DEFAULT_MIN_RELIABILITY
+import rag_trace
+
+logger = logging.getLogger("lords-mobile-agent")
 
 
 class OpenAIMessage(BaseModel):
@@ -42,7 +47,7 @@ class ChatRequest(BaseModel):
     search_type: str = Field(default="hybrid", pattern=r"^(hybrid|semantic|keyword)$")
     top_k: int = Field(default=8, ge=1, le=20)
     min_relevance_score: float = Field(default=0.25, ge=0.0, le=1.0)
-    min_reliability: int = Field(default=4, ge=1, le=5)
+    min_reliability: int = Field(default=DEFAULT_MIN_RELIABILITY, ge=1, le=5)
 
 
 class ChatResponse(BaseModel):
@@ -369,11 +374,38 @@ async def delete_thread(thread_id: str):
 
 async def _invoke_chat(request: ChatRequest) -> ChatResponse:
     incoming = request.messages or [OpenAIMessage(role="user", content=request.message)]
+    question = _extract_user_message(incoming) or request.message.strip()
+    token = rag_trace.begin(question)
+    try:
+        return await _invoke_chat_traced(request)
+    except Exception as error:
+        rag_trace.emit("chat_error", error_type=type(error).__name__, error=str(error))
+        raise
+    finally:
+        rag_trace.emit("chat_finished")
+        rag_trace.end(token)
+
+
+async def _invoke_chat_traced(request: ChatRequest) -> ChatResponse:
+    incoming = request.messages or [OpenAIMessage(role="user", content=request.message)]
     user_message = _extract_user_message(incoming) or request.message.strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="No valid user message provided")
 
     thread_id = request.thread_id or str(uuid4())
+    rag_trace.bind(thread_id=thread_id)
+    rag_trace.emit("chat_request", original_message=request.message,
+                   incoming_messages=[message.model_dump() for message in incoming],
+                   persistence=bool(getattr(app.state, "persistence_enabled", False)),
+                   retrieval_settings={key: getattr(request, key) for key in
+                       ("top_k", "search_type", "min_reliability", "min_relevance_score")})
+    if rag_trace.enabled() and getattr(app.state, "persistence_enabled", False):
+        try:
+            snapshot = await _get_graph_state(app.state.graph, thread_id)
+            rag_trace.emit("checkpoint_before", state=rag_trace.state(snapshot.values or {}),
+                           next_nodes=snapshot.next, metadata=snapshot.metadata)
+        except Exception as error:
+            rag_trace.emit("checkpoint_read_error", error_type=type(error).__name__)
     provider, base_url, api_key = _resolve_provider(request.provider, request.base_url)
     model_name = request.model or LLM_MODEL
     if getattr(app.state, "persistence_enabled", False):
@@ -413,13 +445,15 @@ async def _invoke_chat(request: ChatRequest) -> ChatResponse:
     response_message = result.get("messages", [])[-1]
     response_text = response_message.content if isinstance(response_message.content, str) else str(response_message.content)
 
+    if rag_trace.enabled():
+        rag_trace.emit("graph_result", state=rag_trace.state(result))
     await _upsert_thread(
         thread_id,
         user_id=request.user_id,
         preview=user_message,
         language=result.get("language"),
     )
-    return ChatResponse(
+    response = ChatResponse(
         thread_id=thread_id,
         response=response_text,
         model=model_name,
@@ -434,6 +468,9 @@ async def _invoke_chat(request: ChatRequest) -> ChatResponse:
         generation_mode=result.get("generation_mode", "llm"),
     )
 
+    rag_trace.emit("agent_response_to_backend", response=response.model_dump(), citation_mapping={f"[{i}]": source for i, source in enumerate(response.sources, 1)})
+    return response
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -442,8 +479,10 @@ async def chat(request: ChatRequest):
     except HTTPException:
         raise
     except httpx.HTTPError as error:
+        logger.exception("RAG service call failed for /chat")
         raise HTTPException(status_code=502, detail=f"RAG service unavailable: {error}") from error
     except Exception as error:
+        logger.exception("Unhandled failure for /chat: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
 
 

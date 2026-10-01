@@ -107,6 +107,7 @@ class GraphNodeTests(unittest.TestCase):
             self.assertEqual(
                 mock.await_args.kwargs["statuses"], ["active", "deprecated", "needs_review"]
             )
+            self.assertEqual(mock.await_args.kwargs["min_reliability"], 3)
 
         asyncio.run(run())
 
@@ -214,19 +215,20 @@ class GraphNodeTests(unittest.TestCase):
         self.assertIn("preuve", result["messages"][0].content)
 
     def test_english_fallback_does_not_copy_foreign_source_text(self):
-        result = asyncio.run(
-            graph.generate_node(
-                {
-                    "language": "en",
-                    "player_context": {"response_length": "standard"},
-                    "retrieved_documents": [
-                        {"text": "Pour progresser, développez Économie.", "metadata": {}}
-                    ],
-                    "messages": [],
-                },
-                {"configurable": {}},
+        with patch("graph.get_llm", side_effect=RuntimeError("offline")):
+            result = asyncio.run(
+                graph.generate_node(
+                    {
+                        "language": "en",
+                        "player_context": {"response_length": "standard"},
+                        "retrieved_documents": [
+                            {"text": "Pour progresser, développez Économie.", "metadata": {}}
+                        ],
+                        "messages": [],
+                    },
+                    {"configurable": {}},
+                )
             )
-        )
         self.assertIn("The available documents", result["messages"][0].content)
         self.assertNotIn("Pour progresser", result["messages"][0].content)
 

@@ -152,7 +152,15 @@ public class KnowledgeService {
 
         try {
             JsonNode response = ragClient.ingestText(document.getContent(), metadata);
-            document.setQdrantChunks(response == null ? 0 : response.path("ingested_chunks").asInt(0));
+            int chunks = response == null ? 0 : response.path("ingested_chunks").asInt(0);
+            document.setQdrantChunks(chunks);
+            if (chunks <= 0) {
+                document.setStatus(KnowledgeDocument.Status.NEEDS_REVIEW);
+                document.setLastError("Indexation RAG sans chunk : document non indexé, rien en Qdrant");
+                repository.save(document);
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Indexation sans chunk : contenu filtré ou trop court, document non activé");
+            }
             document.setStatus(KnowledgeDocument.Status.ACTIVE);
             document.setLastError(null);
             return toDto(repository.save(document));
@@ -175,7 +183,7 @@ public class KnowledgeService {
 
     public void delete(UUID id) {
         KnowledgeDocument document = find(id);
-        if (document.getStatus() == KnowledgeDocument.Status.ACTIVE) {
+        if (document.getStatus() == KnowledgeDocument.Status.ACTIVE || document.getQdrantChunks() > 0) {
             ragClient.deleteDocumentById(document.getId().toString());
         }
         repository.delete(document);
